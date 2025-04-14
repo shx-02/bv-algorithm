@@ -22,8 +22,6 @@ needs "sets.ml";;
 
 needs "real.ml";;
 
-(*needs "Boyer_Moore/terms_and_clauses.ml";;*)
-(*下面两个在库中但needs "Boyer_Moore/terms_and_clauses.ml";;失败*)
 let COND_RIGHT_F =
  prove
   (`(if b then b else F) = b`,
@@ -35,7 +33,7 @@ let COND_T_F =
   (`(if b then  T else F) = b`,
    BOOL_CASES_TAC `b:bool` THEN
    REWRITE_TAC []);;
-(*在库中needs "arith.ml";;成功但这些引理用不了*)
+
 let MOD_ZERO = prove
  (`!n. n MOD 0 = n`,
   MESON_TAC[DIVISION_0]);;
@@ -44,7 +42,6 @@ let DIV_ZERO = prove
  (`!n. n DIV 0 = 0`,
   MESON_TAC[DIVISION_0]);;
 
-(*在库中needs "set.ml";;库加载成功且别的引理可用但下面的几个不行*)
 let UNION_RESTRICT = prove
  (`!P s t:A->bool.
         {x | x IN (s UNION t) /\ P x} =
@@ -61,7 +58,11 @@ let DISJOINT_SING = prove
    (!s a:A. DISJOINT {a} s <=> ~(a IN s))`,
   SET_TAC[]);;
 
-(*用于定义N_H门和验证N_H门，在库中needs "Library/words.ml";;但库加载失败*)
+  
+(* ------------------------------------------------------------------------- *)
+(* For the definition and verification of the N_H gate  *)
+(* ------------------------------------------------------------------------- *)
+
 let numbit = new_definition `numbit i n = ODD(n DIV (2 EXP i))`;;
 
 let bits_of_num = new_definition
@@ -84,7 +85,6 @@ let BITSET_EQ_BITSNUM = prove
 (`!a:num. bitset a = bits_of_num a `,
 SIMP_TAC[bitset;bits_of_num;numbit]);;
 
-(*needs"iterate.ml";;成功，但用不了*)
 let ITERATE_CLAUSES_NUMSEG_LT = prove
  (`!op. monoidal op
         ==> iterate op {i | i < 0} f :A = neutral op /\
@@ -99,7 +99,6 @@ let NSUM_CLAUSES_NUMSEG_LT = prove
   MP_TAC(MATCH_MP ITERATE_CLAUSES_NUMSEG_LT MONOIDAL_ADD) THEN
   REWRITE_TAC[NEUTRAL_ADD; nsum]);;
 
-(*needs "Library/words.ml";;库加载失败*)
 let DIGITSUM_BOUND = prove
  (`!B b k. (!i. i < k ==> b i < B)
            ==> nsum {i | i < k} (\i. B EXP i * b i) < B EXP k`,
@@ -268,7 +267,9 @@ let BITS_OF_NUM_SUBSET_NUMSEG_EQ = prove
   SIMP_TAC[GSYM BITSUM_BOUND; FINITE_BITS_OF_NUM; NSUM_BITS_OF_NUM]);;
 
 
-(*我的工作*)
+(* ------------------------------------------------------------------------- *)
+(* Next is my work                                                           *)
+(* ------------------------------------------------------------------------- *)
 let NUM_EXP_LE = prove
   (`!x y. 1 <= y ==> x <= x EXP y`,
     GEN_TAC THEN INDUCT_TAC THEN SIMP_TAC[EXP; ARITH] THEN
@@ -348,49 +349,11 @@ let DEST_OF_QSTATE = prove
   REPEAT STRIP_TAC THEN GEN_REWRITE_TAC I [GSYM qstate_tybij] THEN
   ASM_REWRITE_TAC[]);;
 
-(*量子态操作，没用到*)
-overload_interface ("--",`(qstate_neg):(N)qstate->(N)qstate`);;
 
-overload_interface ("+",`(qstate_add):(N)qstate->(N)qstate->(N)qstate`);;
+(* ------------------------------------------------------------------------- *)
+(* Operation Definitions of Complex Matrix                                   *)
+(* ------------------------------------------------------------------------- *)
 
-parse_as_infix("qdot",(20,"right"));;
-
-let qstate_neg = new_definition
-  `!q:(N)qstate. --q =
-    mk_qstate (lambda i. --(dest_qstate q$i))`;;
-
-let qstate_add = new_definition
-  `qstate_add (q1:(N)qstate) (q2:(N)qstate) :(N)qstate =
-    mk_qstate (lambda i. (dest_qstate q1$i + dest_qstate q2$i))`;;
-
-let qstate_cnj = new_definition
-  `(qstate_cnj :(N)qstate -> (N)qstate) q =
-    mk_qstate (lambda i. cnj (dest_qstate q$i))`;;
-
-let qdot = new_definition
-`(x:(N)qstate) qdot (y:(N)qstate) = vsum (1..dimindex(:(2,N)finite_pow)) (\i. dest_qstate x$i * cnj(dest_qstate y$i))`;;
-
-let QDOT_SYM = prove
-(`!x:(N)qstate y. x qdot y = cnj (y qdot x)`,
-  REWRITE_TAC[qdot]
-  THEN REWRITE_TAC[MATCH_MP (SPEC_ALL CNJ_VSUM) (SPEC `dimindex (:N)` (GEN_ALL
-    (CONJUNCT1 (SPEC_ALL (REWRITE_RULE[HAS_SIZE] HAS_SIZE_NUMSEG_1)))))]
-  THEN REWRITE_TAC[CNJ_MUL;CNJ_CNJ;COMPLEX_MUL_SYM]);;
-
-(*张量积没用到*)
-let tensor_pro_vec = new_definition
-  `tensor_pro_vec (x:(N)qstate) (y:(M)qstate):((N,M)finite_sum)qstate =
-   mk_qstate (lambda k. (dest_qstate x$((k - 1) DIV dimindex(:M) + 1)) *
-                        (dest_qstate y$((k - 1) MOD dimindex(:M) + 1)))`;;
-
-let tensor_pro_mat = new_definition
-  `tensor_pro_mat (x:complex^(2,M)finite_pow^(2,N)finite_pow)
-  (y:complex^(2,P)finite_pow^(2,Q)finite_pow):
-  complex^((2,M)finite_pow,(2,P)finite_pow)finite_prod^((2,N)finite_pow,(2,Q)finite_pow)finite_prod =
-  lambda i j. x$((i-1) DIV dimindex(:(2,P)finite_pow) + 1)$((j-1) DIV dimindex(:(2,Q)finite_pow) + 1) *
-  y$((i-1) MOD dimindex(:(2,P)finite_pow) + 1)$((j-1) MOD dimindex(:(2,Q)finite_pow) + 1)`;;
-
-(*复矩阵操作*)
 overload_interface ("**",`(cmatrix_qstate_mul):complex^((2,N)finite_pow)^((2,M)finite_pow)->(N)qstate->(M)qstate`);;
 
 overload_interface ("**",`(cmatrix_mul):complex^(2,N)finite_pow^(2,M)finite_pow->complex^(2,P)finite_pow^(2,N)finite_pow->complex^(2,P)finite_pow^(2,M)finite_pow`);;
@@ -456,6 +419,11 @@ let VSUM_DELTA_ALT = prove
          if a IN s then b else Cx(&0)`,
   SIMP_TAC[CART_EQ; LAMBDA_BETA; VSUM_COMPONENT; COND_COMPONENT] THEN
   SIMP_TAC[DIMINDEX_2;FORALL_2;CX_DEF;complex;VECTOR_2;SUM_DELTA]);;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Basic properties of complex matrix.                                       *)
+(* ------------------------------------------------------------------------- *)
 
 let IDCMAT = prove
  (`!i j.
@@ -526,7 +494,10 @@ SUBGOAL_THEN `?k. 1 <= k /\ k <= dimindex(:(2,N)finite_pow) /\
   CHOOSE_TAC THENL [REWRITE_TAC[FINITE_INDEX_INRANGE2]; ALL_TAC] THEN
   ASM_SIMP_TAC[ctransp;CART_EQ;LAMBDA_BETA]);;
 
-(*酉矩阵*)
+(* ------------------------------------------------------------------------- *)
+(* Unitary matrix.                                                           *)
+(* ------------------------------------------------------------------------- *)
+
 let unitary_matrix = new_definition
   `unitary_matrix (U:complex^(2,N)finite_pow^(2,N)finite_pow) <=>
      hermitian_matrix U ** U = id_cmatrix /\ U ** hermitian_matrix U = id_cmatrix`;;
@@ -594,7 +565,11 @@ SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN REPEAT STRIP_TAC THEN
 GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ]
 THEN ASM_SIMP_TAC[VSUM_DELTA_ALT;IN_NUMSEG]);;
 
-(*量子门*)
+
+(* ------------------------------------------------------------------------- *)
+(* Hadamard gate.                                                            *)
+(* ------------------------------------------------------------------------- *)
+
 let hadamard = new_definition
   `hadamard : complex^(2,1)finite_pow^(2,1)finite_pow = lambda i j.
      if i = 1 /\ j = 1 then Cx(&1 / sqrt(&2)) else
@@ -636,7 +611,11 @@ THEN SIMP_TAC[REAL_ARITH`&1 / &1  + &1/ &1 = &2`] THEN
 SIMP_TAC[GSYM CX_NEG;GSYM CX_ADD;REAL_ARITH`&1 / &2 + -- (&1/ &2) = &0`]
 THEN MESON_TAC[]);;
 
-(*用于归纳法证明N_H门幺正性*)
+
+(* ------------------------------------------------------------------------- *)
+(* To inductively prove the unitary property of the N-fold Hadamard gate.    *)                                                         *)
+(* ------------------------------------------------------------------------- *)
+
 let OFFSET_IMAGE = prove
 (`!c m:num. {k |k IN c + 1..c + m /\ P k}  = IMAGE(\x.x + c) {k | k IN 1..m /\ P (k + c)}`,
 REPEAT GEN_TAC THEN
@@ -1547,6 +1526,11 @@ let BITAND_CARD_ODD_EVEN_EQ_ODD2 = prove
 REPEAT STRIP_TAC THEN MP_TAC(SPECL[`N:num`;`c:num`;`d:num`] BITAND_ODD_EVEN_CARD) THEN
 MP_TAC(SPECL[`N:num`;`c:num`;`d:num`] BITAND_ODD_ODD_CARD) THEN ASM_SIMP_TAC[]);;
 
+
+(* ------------------------------------------------------------------------- *)
+(* N_qubit Hadamard gates.                                                   *)
+(* ------------------------------------------------------------------------- *)
+
 let hadamard_n = new_definition
   `hadamard_n:complex^(2,N)finite_pow^(2,N)finite_pow = lambda i j.
      if EVEN (CARD(bitand (i-1)(j-1)))
@@ -1649,7 +1633,11 @@ MP_TAC(ARITH_RULE`1 <= i' /\ i' <= 2 <=> i' = 1 \/ i' = 2`) THEN ASM_SIMP_TAC[] 
 THEN MP_TAC(ARITH_RULE`1 <= dimindex(:N) /\ ~(dimindex(:N) = 1) <=> 1 < dimindex(:N)`) THEN
 ASM_SIMP_TAC[DIMINDEX_GE_1] THEN REPEAT STRIP_TAC THEN SIMP_TAC[REAL_ARITH`a - a + a - a = &0`]);;
 
-(*BV算法*)
+
+(* ------------------------------------------------------------------------- *)
+(* BV algorithm.                                                             *)
+(* ------------------------------------------------------------------------- *)
+
 let zero_qstate = new_definition
   `zero_qstate :(N)qstate =
    mk_qstate (lambda i. if i = 1 then Cx(&1) else Cx(&0))`;;
@@ -1664,14 +1652,10 @@ let zero_h = new_definition
 let one_h = new_definition
 `one_h = cmatrix_qstate_mul hadamard (one_qstate:(1)qstate)`;;
 
-(*定义初态进行H门操作后状态
-let state_after_h = new_definition
-` state_after_h = tensor_pro_vec zero_h one_h `;;*)
-
 let flip_mat = new_definition
-`(flip_mat:num -> complex^(2,N)finite_pow^(2,N)finite_pow) a =
-    lambda i j. if (i = a ) /\ (j = a) then --Cx(&1)
-                   else if i = j /\ ~(i = a) then Cx(&1)
+`(flip_mat:num -> complex^(2,N)finite_pow^(2,N)finite_pow) k =
+    lambda i j. if (i = k ) /\ (j = k) then --Cx(&1)
+                   else if i = j /\ ~(i = k) then Cx(&1)
                    else Cx(&0)`;;
 
 let FLIP_MAT = prove
@@ -1685,11 +1669,11 @@ let FLIP_MAT = prove
   THEN ASM_SIMP_TAC[flip_mat;LAMBDA_BETA]);;
 
 let FLIP_DIAGONAL = prove
-(`!a.diagonal_cmatrix (flip_mat a:complex^(2,N)finite_pow^(2,N)finite_pow)`,
+(`!k.diagonal_cmatrix (flip_mat k:complex^(2,N)finite_pow^(2,N)finite_pow)`,
 SIMP_TAC[diagonal_cmatrix;flip_mat;LAMBDA_BETA] THEN MESON_TAC[]);;
 
 let FLIP_TRANSP = prove
-(`!a.ctransp (flip_mat a:complex^(2,N)finite_pow^(2,N)finite_pow) = flip_mat a`,
+(`!k.ctransp (flip_mat k:complex^(2,N)finite_pow^(2,N)finite_pow) = flip_mat k`,
 SIMP_TAC[FLIP_DIAGONAL;CTRANSP_DIAGONAL_CMATRIX]);;
 
 let FLIP_MAT_HERMITIAN = prove
@@ -1708,7 +1692,7 @@ ONCE_SIMP_TAC[COND_RAND] THEN ONCE_SIMP_TAC[COND_RAND] THEN ONCE_SIMP_TAC[COND_R
 THEN SIMP_TAC[GSYM CX_NEG;CNJ_CX] THEN ASM_MESON_TAC[]);;
 
 let FLIP_MAT_UNITARY = prove
-(`!a. unitary_matrix (flip_mat a : complex^(2,N)finite_pow^(2,N)finite_pow)`,
+(`!k. unitary_matrix (flip_mat k : complex^(2,N)finite_pow^(2,N)finite_pow)`,
 SIMP_TAC[unitary_matrix;GSYM FLIP_MAT_HERMITIAN;FLIP_DIAGONAL;CMATRIX_MUL_DIAGONAL]
 THEN SIMP_TAC[flip_mat;id_cmatrix] THEN SIMP_TAC[CART_EQ;LAMBDA_BETA]
 THEN SIMP_TAC[COND_RMUL;COND_LMUL] THEN
@@ -1772,11 +1756,14 @@ SIMP_TAC[VSUM_DELTA_ALT;IN_NUMSEG;DIMINDEX_GE_1;LE_REFL] THEN SIMP_TAC[CART_EQ;L
 THEN REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
 MP_TAC (SPECL[`i:num`;`1`]NHADAMARD_MAT) THEN ASM_SIMP_TAC[LE_REFL;DIMINDEX_GE_1;ARITH;BITAND_0;EVEN]);;
 
-(*定义f函数*)
+
+(* ------------------------------------------------------------------------- *)
+(* f(x) function                                                             *)
+(* ------------------------------------------------------------------------- *)
+
 let fx = new_definition
 `(fx:num -> num -> bool) a b = ODD (CARD(bitand a b))`;;
 
-(*定义Oracle后状态*)
 let state_after_ora = new_definition
   `(state_after_ora:num -> (N)qstate) inputs =
      mk_qstate (lambda i.
@@ -1800,10 +1787,20 @@ let second_h = new_definition
 let find_one  = new_definition
 `(find_one:(N)qstate -> num) q =
 @k. 1 <= k /\ k <= dimindex(:(2,N)finite_pow) /\ dest_qstate q$k = Cx(&1)`;;
-(*元素为1的索引减1即为隐藏字符串s的十进制数*)
+
+
+(* ---------------------------------------------------------------------------------- *)
+(* The hidden decimal string s is calculated as: the index of the '1' element minus 1.*)
+(* ---------------------------------------------------------------------------------- *)
+
 let find_s = new_definition
 `(find_s:(N)qstate -> num) q =
   (find_one q) - 1`;;
+
+
+(* ------------------------------------------------------------------------- *)
+(* Consistency of Query Result.                                              *)
+(* ------------------------------------------------------------------------- *)
 
 let CONSISTENCY = prove
 (`!N inputs:num.  0 < inputs /\ inputs < dimindex(:(2,N)finite_pow)
@@ -1943,7 +1940,10 @@ THEN ASM_SIMP_TAC[ARITH_RULE`inputs + 1 <= a  <=> inputs < a`] THEN ASM_SIMP_TAC
 THEN ARITH_TAC);;
 
 
-(*异或*)
+(* ------------------------------------------------------------------------- *)
+(* Definition of XOR.                                                        *)
+(* ------------------------------------------------------------------------- *)
+
 let xor = new_definition
 `!a b:num. xor a b = bitset a DIFF bitset b UNION bitset b DIFF bitset a`;;
 
@@ -1955,12 +1955,14 @@ SIMP_TAC[SET_RULE`(A DIFF B UNION B DIFF A) DIFF B = (A DIFF B) DIFF B UNION
   (B DIFF A) DIFF B`] THEN SIMP_TAC[DIFF_DIFF;SET_RULE`A DIFF B DIFF A = {}`;UNION_EMPTY]
 THEN SIMP_TAC[SET_RULE`B DIFF (A DIFF B UNION B DIFF A) = A INTER B`] THEN SET_TAC[]);;
 
-(*纠错算法*)
-(*定义A字符串gamma 101 = 5*)
+
+(* ------------------------------------------------------------------------- *)
+(* Quantum Error Correction.                                                 *)
+(* ------------------------------------------------------------------------- *)
+
 let gamma = new_definition
 `gamma = 4`;;
 
-(*定义B字符串eta 100 = 4*)
 let eta = new_definition
 `eta = 5`;;
 
@@ -1979,8 +1981,11 @@ THEN SIMP_TAC[SET_RULE`0 IN {0,2}`;ARITH];ALL_TAC] THEN SUBGOAL_THEN`{2} DIFF {0
 SIMP_TAC[DIFF;IN_ELIM_THM;EXTENSION;IN_SING] THEN GEN_TAC THEN SIMP_TAC[SET_RULE`~(x IN {0,2}) <=> ~(x = 0) /\ ~(x = 2)`]
 THEN SIMP_TAC[SET_RULE`x = 2 /\ ~(x = 0) /\ ~(x = 2) <=> x IN {}`] ;ALL_TAC] THEN SIMP_TAC[UNION_EMPTY]);;
 
-(*加密解密*)
-(*提供2*2图像4个像素数据*)
+
+(* ------------------------------------------------------------------------- *)
+(* Define the values of the 4 pixels in a 2*2 image.                         *)
+(* ------------------------------------------------------------------------- *)
+
 let pixel_1 = new_definition
 `pixel_1 = 31`;;
 
@@ -1993,11 +1998,19 @@ let pixel_3 = new_definition
 let pixel_4 = new_definition
 `pixel_4 = 12`;;
 
-(*定义加密密钥s*)
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of the Key s .                                                 *)
+(* ------------------------------------------------------------------------- *)
+
 let s = new_definition
 `s = 23`;;
 
-(*图像加密*)
+
+(* ------------------------------------------------------------------------- *)
+(* Image Encryption and Decryption.                                          *)
+(* ------------------------------------------------------------------------- *)
+
 let encryption_1 = new_definition
 `encryption_1 = xor pixel_1 s`;;
 
@@ -2010,7 +2023,6 @@ let encryption_3 = new_definition
 let encryption_4 = new_definition
 `encryption_4 = xor pixel_4 s`;;
 
-(*BV算法求得s后解密过程*)
 let decryption_1 = new_definition
 `decryption_1 = xor (binarysum(encryption_1)) s`;;
 
@@ -2023,7 +2035,11 @@ let decryption_3 = new_definition
 let decryption_4 = new_definition
 `decryption_4 = xor (binarysum(encryption_4)) s`;;
 
-(*证明解密后图像恢复为原图像*)
+
+(* ------------------------------------------------------------------------- *)
+(* Prove that the decrypted image is restored to the original image.         *)
+(* ------------------------------------------------------------------------- *)
+
 let DECRYPTION_1 = prove
 (`binarysum(decryption_1) = pixel_1`,
 SIMP_TAC[decryption_1;encryption_1;DECRYPTION;BINARYSUM_BITSET]);;
