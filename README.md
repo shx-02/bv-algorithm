@@ -17,6 +17,6 @@ To run this library, please make sure the following dependencies are installed:
 
 ## Quick Start
 Prerequisites
--**OCaml ≥ 4.10**
--**HOL Light (latest Git snapshot)**
--**Install instructions: https://hol-light.github.io/**
+- **OCaml ≥ 4.10**
+- **HOL Light (latest Git snapshot)**
+- **Install instructions: https://hol-light.github.io/**
