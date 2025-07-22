@@ -6,21 +6,13 @@ needs "Multivariate/realanalysis.ml";;
 
 needs "Library/grouptheory.ml";;
 
-needs "Library/binary.ml";;
-
-needs "Library/analysis.ml";;
-
 needs "Multivariate/cvectors.ml";;
 
 needs "Multivariate/vectors.ml";;
 
-needs "cart.ml";;
+needs "Library/binary.ml";;
 
-needs "arith.ml";;
-
-needs "sets.ml";;
-
-needs "real.ml";;
+needs "Library/words.ml";;
 
 let COND_RIGHT_F =
  prove
