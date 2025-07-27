@@ -20,7 +20,7 @@ Prerequisites
 - **OCaml ≥ 4.10**
 - **HOL Light (latest Git snapshot)**
 - **Install instructions: https://hol-light.github.io/**
-Running the Formal Proofs
+**Running the Formal Proofs**
 - **cd hol-light**
    - **ledit ocaml**
   - **#use "hol.ml";;**
