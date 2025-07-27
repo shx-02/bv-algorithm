@@ -21,8 +21,8 @@ Prerequisites
 - **HOL Light (latest Git snapshot)**
 - **Install instructions: https://hol-light.github.io/**
  
-Running the Formal Proofs
- **cd hol-light**
- **ledit ocaml**
- **#use "hol.ml";;**
-**loads "Bernstein-Vazirani Algorithm.ml";;**
+Running the Formal Code
+- **cd hol-light**
+- **ledit ocaml**
+- **#use "hol.ml";;**
+- **loads "Bernstein-Vazirani Algorithm.ml";;**
