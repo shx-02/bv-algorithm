@@ -1931,6 +1931,246 @@ MP_TAC(SPECL[`inputs + 1`;`inputs + 1`] CBASIS_COMPONENT) THEN SIMP_TAC[ARITH_RU
 THEN ASM_SIMP_TAC[ARITH_RULE`inputs + 1 <= a  <=> inputs < a`] THEN ASM_SIMP_TAC[ARITH_RULE`0 <= a <=> a = 0 \/ 0 < a`];ALL_TAC]
 THEN ARITH_TAC);;
 
+(* ------------------------------------------------------------------------- *)
+(* Definition of Ground State.                                                        *)
+(* ------------------------------------------------------------------------- *)
+
+let qbasis = new_definition
+  `(qbasis:num -> (N)qstate) k =
+     mk_qstate(lambda i. if i = k then Cx(&1) else Cx(&0))`;;
+
+let QBASIS_COMPONENT = prove
+ (`!k i. 1 <= k /\ k <= dimindex (:(2,N)finite_pow) /\ 1 <= i /\ i <= dimindex (:(2,N)finite_pow)
+         ==> (dest_qstate (qbasis i:(N)qstate)$k = if k = i then Cx(&1) else Cx(&0))`,
+  REPEAT STRIP_TAC THEN SIMP_TAC[qbasis] THEN SUBGOAL_THEN`(lambda i'. if i' = i 
+  then Cx (&1) else Cx (&0)): complex^(2,N)finite_pow = cbasis (i:num)`SUBST1_TAC THENL[SIMP_TAC[cbasis;vector_to_cvector;vector_map;CART_EQ;LAMBDA_BETA;basis] THEN
+  ASM_SIMP_TAC[COND_RAND];ALL_TAC] THEN SUBGOAL_THEN`dest_qstate (mk_qstate (cbasis i))
+  = cbasis i:complex^(2,N)finite_pow`SUBST1_TAC THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN 
+  SIMP_TAC[is_qstate;CNORM2_VECTOR_TO_CVECTOR;cbasis] THEN 
+  ASM_SIMP_TAC[NORM_BASIS;REAL_ARITH`&1 pow 2 = &1`];ALL_TAC] THEN
+  ASM_SIMP_TAC[CBASIS_COMPONENT]
+ );;
+
+let QBASIS_UNIT = prove
+(`!k:num. 1<= k /\ k <= dimindex(:(2,N)finite_pow) ==>
+    is_qstate ((lambda i. if i = k then Cx(&1) else Cx(&0)):complex^(2,N)finite_pow)`,
+    REPEAT STRIP_TAC THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;CART_EQ;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN
+    SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO;VSUM_DELTA_ALT] THEN 
+    ASM_SIMP_TAC[IN_NUMSEG] THEN SIMP_TAC[COMPLEX_NORM_CX; REAL_ARITH`abs (&1) = &1`]
+);;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Outer Product.                                              *)
+(* ------------------------------------------------------------------------- *)
+
+let qouter1 = new_definition
+  `qouter1 (v:(M)qstate) (w:(N)qstate) :complex^(2,N)finite_pow^(2,M)finite_pow =
+     (lambda i j. dest_qstate v$i * cnj (dest_qstate w$j))`;;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Projection Operator.                                        *)
+(* ------------------------------------------------------------------------- *)
+
+let project = new_definition
+  `(project:(N)qstate -> complex^(2,N)finite_pow^(2,N)finite_pow) v = qouter1 v v`;;
+
+let project_HERMITIAN = prove
+(`project (v:(N)qstate) = hermitian_matrix (project v)`,
+    SIMP_TAC[hermitian_matrix;project] THEN SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN
+    REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[qouter1] THEN
+    ASM_SIMP_TAC[LAMBDA_BETA] THEN SIMP_TAC[CNJ_MUL;CNJ_CNJ;COMPLEX_MUL_AC]
+);;
+
+let PROJECT_QBASIS_COMPONENT = prove
+(`!k:num.1 <= k /\ k <= dimindex(:(2,N)finite_pow) /\
+         1 <= i /\ i <= dimindex(:(2,N)finite_pow) /\
+        1 <= j /\ j <= dimindex(:(2,N)finite_pow)==>
+    (project (qbasis k:(N)qstate):complex^(2,N)finite_pow^(2,N)finite_pow)$i$j = 
+    if (i = j) /\ (i = k) then Cx(&1) else Cx(&0)`,
+    SIMP_TAC[project;qouter1;QBASIS_COMPONENT;LAMBDA_BETA] THEN 
+    SIMP_TAC[COND_LMUL;COND_CNJ;CNJ_CX;COND_RMUL] THEN
+    SIMP_TAC[COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN REPEAT STRIP_TAC THEN 
+    COND_CASES_TAC THENL[ASM_MESON_TAC[];ALL_TAC] THEN 
+    ASM_MESON_TAC[]
+);;
+
+let apply_cmatrix = new_definition
+  `(apply_cmatrix: complex^(2,N)finite_pow^(2,M)finite_pow -> (N)qstate -> complex^(2,M)finite_pow) A q  =
+   lambda i. vsum (1..dimindex (:(2,N)finite_pow)) (\j. A$i$j * dest_qstate q$j)`;;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Measurement.                                                *)
+(* ------------------------------------------------------------------------- *)
+
+let measurement = new_definition
+`!x y:(N)qstate.
+  measurement x y = cnorm2(apply_cmatrix (project x) y) `;;
+
+(* ------------------------------------------------------------------------- *)
+(* Measurement after the second H gate in the Bernstein-Vazirani algorithm.  *)
+(* ------------------------------------------------------------------------- *)
+let BV_MEASURE = prove
+(`!inputs:num. 
+    0 < inputs /\ inputs < dimindex(:(2,N)finite_pow)
+        ==> measurement (qbasis (inputs + 1):(N)qstate)(second_h inputs:(N)qstate) = &1`,
+  REPEAT STRIP_TAC THEN SIMP_TAC[qbasis;second_h;STATE_AFTER_ORAC;zero_h;NHADAMARD_MUL_ZEROQSTATE;measurement] THEN
+  SUBGOAL_THEN`dest_qstate(mk_qstate (lambda i. Cx(&1 / sqrt (&(dimindex (:(2,N)finite_pow))))))
+  = (lambda i. Cx(&1 / sqrt (&(dimindex (:(2,N)finite_pow))))):complex^(2,N)finite_pow`SUBST1_TAC
+  THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX]
+  THEN SIMP_TAC[GSYM CX_MUL;GSYM REAL_POW_2;ONE_DIV_SQRTN;DIMINDEX_GE_1] THEN
+  SIMP_TAC[VSUM_CONST_NUMSEG;ADD_SUB;COMPLEX_CMUL;GSYM CX_MUL] THEN
+  SIMP_TAC[REAL_ARITH`a * &1 / a = a / a`;DIMINDEX_FINITE_POW;DIMINDEX_2;GSYM REAL_OF_NUM_POW;POW_REFL]
+  THEN SIMP_TAC[complex_norm;RE_CX;IM_CX;REAL_ARITH`&1 pow 2 + &0 pow 2 = &1`;SQRT_1];ALL_TAC] THEN
+  SIMP_TAC[cmatrix_qstate_mul;fx] THEN ABBREV_TAC` c = Cx (&1 / sqrt (&(dimindex (:(2,N)finite_pow))))` THEN
+  SUBGOAL_THEN`cnorm2 ((lambda i. if ODD (CARD (bitand inputs (i - 1)))
+                                 then --((lambda i. c):complex^(2,N)finite_pow$i)
+                                 else (lambda i. c):complex^(2,N)finite_pow$i):complex^(2,N)finite_pow) = &1
+                                 `ASSUME_TAC THENL[
+  SIMP_TAC[CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ] THEN SIMP_TAC[COND_LMUL] THEN
+  RULE_ASSUM_TAC(SIMP_RULE[EQ_SYM_EQ]) THEN ASM_SIMP_TAC[CNJ_CX;CNJ_NEG] THEN
+  SIMP_TAC[COMPLEX_NEG_MUL2;COND_ID;GSYM CX_MUL;GSYM REAL_POW_2;VSUM_CONST_NUMSEG;
+  ADD_SUB;DIMINDEX_GE_1;ONE_DIV_SQRTN] THEN SIMP_TAC[COMPLEX_CMUL;GSYM CX_MUL;
+  REAL_ARITH`a * &1 / a = a / a`;DIMINDEX_FINITE_POW;DIMINDEX_2;GSYM REAL_OF_NUM_POW;POW_REFL]
+  THEN SIMP_TAC[complex_norm;RE_CX;IM_CX;REAL_ARITH`&1 pow 2 + &0 pow 2 = &1`;SQRT_1];ALL_TAC] THEN
+  ASM_SIMP_TAC[DEST_OF_QSTATE_COMPONENT] THEN SIMP_TAC[LAMBDA_BETA] THEN
+  SUBGOAL_THEN`(lambda i. vsum (1..dimindex (:(2,N)finite_pow))
+  (\j. hadamard_n:complex^(2,N)finite_pow^(2,N)finite_pow$i$j *
+                      (if ODD (CARD (bitand inputs (j - 1))) then --c else c))):complex^(2,N)finite_pow =
+  lambda i. vsum (1..dimindex (:(2,N)finite_pow))
+  (\j.(if EVEN (CARD (bitand (i - 1) (j - 1)))
+              then Cx (&1 / sqrt (&(dimindex (:(2,N)finite_pow))))
+              else --Cx (&1 / sqrt (&(dimindex (:(2,N)finite_pow))))) *
+              (if ODD (CARD (bitand inputs (j - 1))) then --c else c))`SUBST1_TAC
+  THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA;NHADAMARD_MAT];ALL_TAC] THEN
+  ASM_SIMP_TAC[] THEN SIMP_TAC[COND_LMUL;COND_RMUL;COMPLEX_MUL_RNEG;COMPLEX_NEG_MUL2;COMPLEX_MUL_LNEG]
+  THEN RULE_ASSUM_TAC(SIMP_RULE[EQ_SYM_EQ]) THEN ASM_SIMP_TAC[GSYM CX_MUL;GSYM REAL_POW_2] THEN
+  SIMP_TAC[DIMINDEX_GE_1;ONE_DIV_SQRTN] THEN SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2] THEN
+  ONCE_SIMP_TAC[COND_RAND] THEN SIMP_TAC[COMPLEX_NEG_NEG] THEN
+  ASM_CASES_TAC`dimindex(:N) <= 1` THENL[POP_ASSUM MP_TAC THEN
+  SIMP_TAC[ARITH_RULE`a <= 1 <=> a = 1 \/ a = 0`;ARITH_RULE`1 <= a ==> ~(a = 0)`;DIMINDEX_GE_1;EXP_1] THEN
+  SIMP_TAC[VSUM_2;ARITH;BITAND_0] THEN STRIP_TAC THEN
+  SUBGOAL_THEN`(lambda i. Cx (&1 / &2) +
+                 (if EVEN (CARD (bitand (i - 1) 1))
+                  then if ODD (CARD (bitand inputs 1))
+                       then --Cx (&1 / &2)
+                       else Cx (&1 / &2)
+                  else if ODD (CARD (bitand inputs 1))
+                       then Cx (&1 / &2)
+                       else --Cx (&1 / &2))):complex^(2,N)finite_pow =
+  (lambda i. if inputs = i - 1 then Cx(&1) else Cx(&0))`SUBST1_TAC THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN
+  ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1] THEN REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC
+  THEN MP_TAC (ARITH_RULE`1 <= i ==> i <= 2 ==> i = 1 \/ i = 2`) THEN ASM_SIMP_TAC[] THEN STRIP_TAC THENL[
+  ASM_SIMP_TAC[ARITH;BITAND_0;EVEN] THEN SIMP_TAC[EQ_SYM_EQ] THEN COND_CASES_TAC
+  THENL[ASM_SIMP_TAC[BITAND_0;CARD_CLAUSES;ODD] THEN SIMPLE_COMPLEX_ARITH_TAC;ALL_TAC]
+  THEN UNDISCH_TAC`inputs < dimindex (:(2,N)finite_pow)` THEN
+  ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1] THEN STRIP_TAC
+  THEN MP_TAC(ARITH_RULE`0 < inputs /\ inputs < 2 <=> inputs = 1`)
+  THEN ASM_SIMP_TAC[] THEN SIMP_TAC[bitand;BITSET_EQ_BITSNUM;BITS_OF_NUM_1;INTER_IDEMPOT;
+  CARD_SING;ARITH_RULE`ODD 1 <=> T`] THEN STRIP_TAC THEN SIMPLE_COMPLEX_ARITH_TAC;ALL_TAC] THEN ASM_SIMP_TAC[ARITH;bitand;BITSET_EQ_BITSNUM;BITS_OF_NUM_1;INTER_IDEMPOT;CARD_SING] THEN
+  SIMP_TAC[ARITH_RULE`EVEN 1 <=> F`] THEN UNDISCH_TAC`inputs < dimindex (:(2,N)finite_pow)`
+  THEN ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1] THEN STRIP_TAC THEN
+  MP_TAC(ARITH_RULE`0 < inputs /\ inputs < 2 <=> inputs = 1`) THEN ASM_SIMP_TAC[] THEN
+  SIMP_TAC[BITS_OF_NUM_1;INTER_IDEMPOT] THEN SIMP_TAC[CARD_SING;ARITH_RULE`ODD 1 <=> T`] THEN
+  SIMPLE_COMPLEX_ARITH_TAC;ALL_TAC] THEN
+  SIMP_TAC[apply_cmatrix] THEN ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1] THEN SIMP_TAC[GSYM qbasis] THEN
+  SUBGOAL_THEN`dest_qstate
+      (mk_qstate (lambda i. if inputs = i - 1 then Cx (&1) else Cx (&0))) =
+  (lambda i. if inputs = i - 1 then Cx (&1) else Cx (&0)):complex^(2,N)finite_pow`SUBST1_TAC
+  THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX]
+  THEN SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN
+  GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN
+  UNDISCH_TAC`inputs < dimindex (:(2,N)finite_pow)` THEN
+  ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1;VSUM_2] THEN STRIP_TAC
+  THEN MP_TAC(ARITH_RULE`0 < inputs /\ inputs < 2 <=> inputs = 1`)
+  THEN ASM_SIMP_TAC[ARITH;SIMPLE_COMPLEX_ARITH`Cx(&0) + Cx(&1) = Cx(&1)`;complex_norm;
+  RE_CX;IM_CX;REAL_ARITH`&1 pow 2 + &0 pow 2 = &1`;SQRT_1];ALL_TAC] THEN
+  UNDISCH_TAC`inputs < dimindex (:(2,N)finite_pow)` THEN
+  ASM_SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1] THEN
+  STRIP_TAC THEN MP_TAC(ARITH_RULE`0 < inputs /\ inputs < 2 <=> inputs = 1`) THEN
+  ASM_SIMP_TAC[ARITH] THEN SIMP_TAC[ARITH_RULE`1 = i - 1 <=> i = 2`] THEN STRIP_TAC THEN
+  ASM_SIMP_TAC[VSUM_2;DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ] THEN
+  ASM_SIMP_TAC[LAMBDA_BETA;DIMINDEX_2;PROJECT_QBASIS_COMPONENT;ARITH_RULE`1 <= 2 /\ 2 <= 2`;DIMINDEX_FINITE_POW;
+  DIMINDEX_1;EXP_1;ARITH;ARITH_RULE`1 <= 1 /\ 1 <= 2`] THEN SIMP_TAC[COMPLEX_MUL_LZERO;CNJ_CX;COMPLEX_ADD_LID;
+  COMPLEX_MUL_LID;COMPLEX_NORM_NUM];ALL_TAC] THEN
+  RULE_ASSUM_TAC(SIMP_RULE[ARITH_RULE`~(a <= 1) <=> 1 < a`]) THEN SIMP_TAC[FINITE_NUMSEG;FINITE_RESTRICT;
+  VSUM_CASES;VSUM_CONST] THEN SIMP_TAC[SET_RULE`{k | k IN {k | k IN t /\ P k} /\ Q k} =
+  {k | k IN t /\  P k /\ Q k}`;NOT_ODD;NOT_EVEN] THEN
+  SUBGOAL_THEN`(lambda i. (&(CARD{j | j IN 1..2 EXP dimindex (:N) /\
+  EVEN (CARD (bitand (i - 1) (j - 1))) /\ ODD (CARD (bitand inputs (j - 1)))}) %
+  --Cx (&1 / &(2 EXP dimindex (:N))) + &(CARD{j | j IN 1..2 EXP dimindex (:N) /\
+  EVEN (CARD (bitand (i - 1) (j - 1))) /\ EVEN (CARD (bitand inputs (j - 1)))}) %
+  Cx (&1 / &(2 EXP dimindex (:N)))) + &(CARD{j | j IN 1..2 EXP dimindex (:N) /\
+  ODD (CARD (bitand (i - 1) (j - 1))) /\ ODD (CARD (bitand inputs (j - 1)))}) %
+  Cx (&1 / &(2 EXP dimindex (:N))) +  &(CARD{j | j IN 1..2 EXP dimindex (:N) /\
+  ODD (CARD (bitand (i - 1) (j - 1))) /\ EVEN (CARD (bitand inputs (j - 1)))}) %
+  --Cx (&1 / &(2 EXP dimindex (:N)))):complex^(2,N)finite_pow =
+  (lambda i. if i - 1 = inputs then Cx(&1) else Cx(&0)):complex^(2,N)finite_pow`SUBST1_TAC
+  THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN REPEAT STRIP_TAC THEN COND_CASES_TAC
+  THENL[ASM_SIMP_TAC[GSYM NOT_EVEN] THEN SIMP_TAC[SET_RULE`{k | k IN t /\ p k /\ ~ p k} = {}`;
+  SET_RULE`{k | k IN t /\ ~ p k /\ p k} = {}`;CARD_CLAUSES;COMPLEX_CMUL;COMPLEX_MUL_LZERO] THEN
+  SIMP_TAC[GSYM CX_MUL;GSYM CX_ADD] THEN AP_THM_TAC THEN REPEAT AP_TERM_TAC THEN
+  SIMP_TAC[REAL_ARITH`(&0 + a) + b + &0 = a + b`] THEN SIMP_TAC[REAL_ARITH`a * b + c * b = (a + c) * b:real`]
+  THEN SIMP_TAC[REAL_OF_NUM_ADD;FINITE_RESTRICT;FINITE_NUMSEG;GSYM CARD_UNION;
+  SET_RULE`{j |j IN t /\ p j} INTER {j |j IN t /\ ~ p j} = {}`] THEN
+  SIMP_TAC[SET_RULE`{k |k IN t /\ p k} UNION {k |k IN t /\ ~ p k} = {k |k IN t}`]
+  THEN SIMP_TAC[SET_RULE`{k |k IN 1..m} = (1..m)`;CARD_NUMSEG_1] THEN
+  SIMP_TAC[GSYM REAL_OF_NUM_POW;POW_REFL;REAL_ARITH`a * &1 / a = a / a`];ALL_TAC]
+  THEN RULE_ASSUM_TAC(SIMP_RULE[DIMINDEX_FINITE_POW;DIMINDEX_2]) THEN
+  MP_TAC (SPECL[`dimindex(:N)`;`i - 1`;`inputs:num`] BITAND_CARD_EVEN2_EQ_ODD2) THEN
+  MP_TAC (SPECL[`dimindex(:N)`;`i - 1`;`inputs:num`] BITAND_CARD_EVEN_ODD_EQ_ODD2) THEN
+  MP_TAC (SPECL[`dimindex(:N)`;`i - 1`;`inputs:num`] BITAND_CARD_ODD_EVEN_EQ_ODD2) THEN
+  ASM_SIMP_TAC[ARITH_RULE`1 <= x ==> x <= 2 EXP N ==> x - 1  < 2 EXP N`] THEN
+  UNDISCH_TAC`1 <= i` THEN SIMP_TAC[ARITH_RULE`1 <= i <=> i = 1 \/ 1 < i`] THEN
+  STRIP_TAC THENL[ASM_SIMP_TAC[ARITH] THEN SIMP_TAC[BITAND_0;EVEN;ODD;SET_RULE`{j |F} = {}`;
+  CARD_CLAUSES;COMPLEX_CMUL;COMPLEX_MUL_LZERO] THEN AP_THM_TAC THEN REPEAT AP_TERM_TAC THEN
+  SIMP_TAC[GSYM CX_ADD;SIMPLE_COMPLEX_ARITH`Cx(&0 + &0) = Cx(&0)`] THEN
+  SIMP_TAC[COMPLEX_MUL_RNEG] THEN SIMP_TAC[SIMPLE_COMPLEX_ARITH`(-- (a * b) + c * b) + Cx(&0) =
+  Cx(&0) <=> a * b = c * b:complex`] THEN AP_THM_TAC THEN AP_TERM_TAC
+  THEN AP_TERM_TAC THEN AP_TERM_TAC THEN MP_TAC(SPECL[`dimindex(:N)`;`inputs:num`]BITAND_CARD_ODD_EQ_EVEN) THEN
+  ASM_SIMP_TAC[ARITH_RULE`1 < a ==> 0 < a`];ALL_TAC] THEN ASM_SIMP_TAC[ARITH_RULE`1 < a ==> 0 < a - 1`] THEN
+  REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[COMPLEX_CMUL;GSYM COMPLEX_NEG_RMUL;GSYM CX_MUL]
+  THEN SIMP_TAC[SIMPLE_COMPLEX_ARITH`(--a + a) + a + --a = Cx(&0)`];ALL_TAC] THEN
+  SIMP_TAC[apply_cmatrix] THEN
+  SUBGOAL_THEN`dest_qstate
+      (mk_qstate (lambda i. if i - 1 = inputs then Cx (&1) else Cx (&0))) =
+  (lambda i. if i - 1 = inputs then Cx (&1) else Cx (&0)):complex^(2,N)finite_pow`SUBST1_TAC
+  THENL[MATCH_MP_TAC DEST_OF_QSTATE
+  THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN
+  SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO]
+  THEN SUBGOAL_THEN`vsum (1..dimindex (:(2,N)finite_pow))
+  (\i. if i - 1 = inputs then Cx (&1) else Cx (&0)) = vsum (1..dimindex (:(2,N)finite_pow))
+  (\i. if i = inputs + 1 then Cx (&1) else Cx (&0))`SUBST1_TAC THENL[MATCH_MP_TAC VSUM_EQ
+  THEN GEN_TAC THEN SIMP_TAC[IN_NUMSEG] THEN REPEAT STRIP_TAC THEN
+  MP_TAC (ARITH_RULE`1 <= x ==> x - 1 = inputs ==> x = inputs + 1`) THEN ASM_SIMP_TAC[] THEN
+  COND_CASES_TAC THENL[ASM_SIMP_TAC[];ALL_TAC] THEN ASM_SIMP_TAC[] THEN POP_ASSUM MP_TAC THEN
+  ONCE_SIMP_TAC[ARITH_RULE`~(a = b) <=> ~(a + 1 = b + 1)`] THEN MP_TAC (ARITH_RULE`1 <= x <=> x - 1 + 1 = x`) THEN
+  ASM_SIMP_TAC[];ALL_TAC] THEN SIMP_TAC[VSUM_DELTA_ALT;IN_NUMSEG;ARITH_RULE`1 <= inputs + 1 <=> 0 <= inputs`]
+  THEN ASM_SIMP_TAC[ARITH_RULE`inputs + 1 <= a  <=> inputs < a`] THEN COND_CASES_TAC
+  THENL[SIMP_TAC[complex_norm;RE_CX;IM_CX;REAL_ARITH`&1 pow 2 + &0 pow 2 = &1`;SQRT_1];ALL_TAC]
+  THEN POP_ASSUM MP_TAC THEN SIMP_TAC[ARITH_RULE`~(0 <= a) <=> a < 0`] THEN
+  UNDISCH_TAC`0 < inputs` THEN SIMP_TAC[GSYM IMP_CONJ] THEN SIMP_TAC[ARITH_RULE`0 < a /\ a < 0 <=> F`];ALL_TAC] THEN
+  SUBGOAL_THEN`(lambda i. if i - 1 = inputs then Cx (&1) else Cx (&0)) =
+  (lambda i. if i = inputs + 1 then Cx (&1) else Cx (&0)):complex^(2,N)finite_pow`SUBST1_TAC
+  THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN REPEAT STRIP_TAC THEN COND_CASES_TAC
+  THENL[MP_TAC (ARITH_RULE`1 <= i /\ i - 1 = inputs <=> i = inputs + 1`) THEN
+  ASM_SIMP_TAC[];ALL_TAC] THEN POP_ASSUM MP_TAC THEN
+  ONCE_SIMP_TAC[ARITH_RULE`~(a = b) <=> ~(a + 1 = b + 1)`] THEN
+  MP_TAC (ARITH_RULE`1 <= i <=> i - 1 + 1 = i`) THEN ASM_SIMP_TAC[];ALL_TAC] THEN
+  SIMP_TAC[project;qouter1;QBASIS_COMPONENT;LAMBDA_BETA] THEN
+  SUBGOAL_THEN`dest_qstate
+      (mk_qstate (lambda i. if i = inputs + 1 then Cx (&1) else Cx (&0))) =
+  (lambda i. if i = inputs + 1 then Cx (&1) else Cx (&0)):complex^(2,N)finite_pow`SUBST1_TAC THENL[
+  MATCH_MP_TAC DEST_OF_QSTATE THEN MATCH_MP_TAC (SPEC`inputs + 1`QBASIS_UNIT)THEN ASM_ARITH_TAC;ALL_TAC] THEN
+  ASM_SIMP_TAC[CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN SIMP_TAC[COND_RAND] THEN
+  SIMP_TAC[COND_RATOR] THEN SIMP_TAC[COMPLEX_MUL_LID;COMPLEX_MUL_LZERO;COMPLEX_MUL_RID;COMPLEX_MUL_RZERO] THEN
+  SIMP_TAC[VSUM_DELTA_ALT;IN_NUMSEG] THEN ASM_SIMP_TAC[ARITH_RULE`a < b ==> a + 1 <= b`] THEN
+  ASM_SIMP_TAC[ARITH_RULE`1 <= a + 1 <=> 0 <= a`] THEN ASM_SIMP_TAC[ARITH_RULE`0 < a ==> 0 <= a`] THEN
+  SIMP_TAC[COND_CNJ;CNJ_CX;VSUM_DELTA_ALT;COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN
+  ASM_SIMP_TAC[IN_NUMSEG;ARITH_RULE`a < b ==> a + 1 <= b`] THEN
+  ASM_SIMP_TAC[ARITH_RULE`1 <= a + 1 <=> 0 <= a`] THEN ASM_SIMP_TAC[ARITH_RULE`0 < a ==> 0 <= a`] THEN
+  SIMP_TAC[COMPLEX_NORM_NUM]
+);;
+
 
 (* ------------------------------------------------------------------------- *)
 (* Definition of XOR.                                                        *)
