@@ -1625,6 +1625,122 @@ MP_TAC(ARITH_RULE`1 <= i' /\ i' <= 2 <=> i' = 1 \/ i' = 2`) THEN ASM_SIMP_TAC[] 
 THEN MP_TAC(ARITH_RULE`1 <= dimindex(:N) /\ ~(dimindex(:N) = 1) <=> 1 < dimindex(:N)`) THEN
 ASM_SIMP_TAC[DIMINDEX_GE_1] THEN REPEAT STRIP_TAC THEN SIMP_TAC[REAL_ARITH`a - a + a - a = &0`]);;
 
+(* ------------------------------------------------------------------------- *)
+(* `tensor_n2` denotes the n-fold tensor product of 2-dimensional matrices.  *)
+(* ------------------------------------------------------------------------- *)
+
+let tensor_n2 = new_definition
+`!m:(complex^(2,1)finite_pow^(2,1)finite_pow)list.
+  tensor_n2 m =
+    lambda i j. cproduct (0..LENGTH m - 1)
+      (\k. EL k (REVERSE m) $(((i-1) DIV (2 EXP k)) MOD 2 + 1)
+                   $(((j-1) DIV (2 EXP k)) MOD 2 + 1))`;;
+
+(* ------------------------------------------------------------------------- *)
+(* `list_of_seq (\k. k) n` produces the integer sequence 0, 1, …, n−1.
+`MAP f (list_of_seq (\k. k) n)` then applies the function f to each element of this list, yielding a list of matrices.  *)
+(* ------------------------------------------------------------------------- *)
+
+let cmatrix_list = new_definition
+`!n:num f:num -> complex^(2,1)finite_pow^(2,1)finite_pow.
+  (cmatrix_list f n):(complex^(2,1)finite_pow^(2,1)finite_pow)list = MAP f (list_of_seq (\k. k) n)`;;
+
+(* ------------------------------------------------------------------------- *)
+(* The n-fold tensor product of Hadamard gates is realized by a list of n identical Hadamard matrices. *)
+(* ------------------------------------------------------------------------- *)
+
+let n_hadamard = new_definition
+`n_hadamard:complex^(2,N)finite_pow^(2,N)finite_pow =
+ tensor_n2 (cmatrix_list (\k. hadamard) (dimindex(:N)))`;;
+
+let N_HADAMARD_EQHADAMARD_N = prove
+(`n_hadamard = hadamard_n:complex^(2,N)finite_pow^(2,N)finite_pow`,
+  SIMP_TAC[n_hadamard;hadamard_n;cmatrix_list;tensor_n2] THEN
+  SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN REPEAT STRIP_TAC THEN
+  AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[LENGTH_MAP;LENGTH_LIST_OF_SEQ] THEN
+  SUBGOAL_THEN`MAP (\k. hadamard) (list_of_seq (\k. k) (dimindex (:N)))
+    = REPLICATE (LENGTH (list_of_seq (\k. k) (dimindex (:N)))) hadamard`SUBST1_TAC
+    THENL[SPEC_TAC(`list_of_seq (\k. k) (dimindex (:N))`,`l:num list`)
+    THEN LIST_INDUCT_TAC THENL[SIMP_TAC[MAP;REPLICATE;LENGTH];ALL_TAC] THEN
+    ASM_SIMP_TAC[REPLICATE;LENGTH;MAP];ALL_TAC] THEN
+  SIMP_TAC[LENGTH_LIST_OF_SEQ] THEN SIMP_TAC[REVERSE_REPLICATE] THEN
+  SUBGOAL_THEN`cproduct (0..dimindex (:N) - 1)
+  (\k. EL k (REPLICATE (dimindex (:N)) hadamard)$
+      (((i - 1) DIV 2 EXP k) MOD 2 + 1)$
+      (((i' - 1) DIV 2 EXP k) MOD 2 + 1)) =
+      cproduct (0..dimindex (:N) - 1)
+  (\k. hadamard$
+      (((i - 1) DIV 2 EXP k) MOD 2 + 1)$
+      (((i' - 1) DIV 2 EXP k) MOD 2 + 1))`SUBST1_TAC THENL[MATCH_MP_TAC CPRODUCT_EQ
+      THEN SIMP_TAC[IN_NUMSEG] THEN REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC
+      THEN AP_THM_TAC THEN AP_TERM_TAC THEN MATCH_MP_TAC EL_REPLICATE THEN
+      ASM_SIMP_TAC[ARITH_RULE`1 <= b /\ a <= b - 1 ==> a < b`;DIMINDEX_GE_1];ALL_TAC]
+      THEN SIMP_TAC[MOD_2_CASES] THEN SIMP_TAC[GSYM NOT_ODD;COND_SWAP] THEN
+      SIMP_TAC[COND_RAND] THEN SIMP_TAC[COND_RATOR;ARITH_RULE`1+1=2`;ADD] THEN
+      SIMP_TAC[GSYM IN_BITS_OF_NUM] THEN SIMP_TAC[bitand;bitset;BITSET_EQ_BITSNUM] THEN
+  SUBGOAL_THEN`(\k. hadamard$
+           (if k IN bits_of_num (i - 1) then 2 else 1)$
+           (if k IN bits_of_num (i' - 1) then 2 else 1)) =
+           (\k.if k IN bits_of_num (i - 1) /\ k IN bits_of_num (i' - 1)
+           then  --Cx(&1 / sqrt(&2))
+           else Cx(&1 / sqrt(&2)))`SUBST1_TAC THENL[SIMP_TAC[FUN_EQ_THM] THEN GEN_TAC THEN
+           COND_CASES_TAC THEN COND_CASES_TAC THEN SIMP_TAC[HADAMARD_EQ;LAMBDA_BETA;
+           DIMINDEX_2;ARITH_RULE`1 <= 2 /\ 2 <= 2`;DIMINDEX_FINITE_POW;DIMINDEX_1;EXP_1;
+           ARITH;ARITH_RULE`1 <= 1 /\ 1 <= 2`];ALL_TAC] THEN
+           SIMP_TAC[GSYM IN_INTER] THEN
+  SUBGOAL_THEN`(0..dimindex (:N) - 1) = (bits_of_num (i - 1) INTER bits_of_num (i' - 1)) UNION
+  ((0..dimindex (:N) - 1) DIFF (bits_of_num (i - 1) INTER bits_of_num (i' - 1)))`SUBST1_TAC
+  THENL[MATCH_MP_TAC UNION_DIFF THEN MATCH_MP_TAC SUBSET_TRANS THEN
+  EXISTS_TAC` bits_of_num (i - 1) ` THEN SIMP_TAC[INTER_SUBSET] THEN
+  MATCH_MP_TAC SUBSET_TRANS THEN EXISTS_TAC`{k | k < dimindex(:N)}` THEN
+  SIMP_TAC[BITS_OF_NUM_SUBSET_NUMSEG_EQ] THEN ASM_SIMP_TAC[GSYM DIMINDEX_FINITE_POW;GSYM DIMINDEX_2;
+  SUBSET;IN_ELIM_THM;IN_NUMSEG;ARITH] THEN ASM_ARITH_TAC;ALL_TAC] THEN
+  SUBGOAL_THEN`cproduct (bits_of_num (i - 1) INTER bits_of_num (i' - 1) UNION
+  (0..dimindex (:N) - 1) DIFF bits_of_num (i - 1) INTER bits_of_num (i' - 1))
+      (\k. if k IN bits_of_num (i - 1) INTER bits_of_num (i' - 1)
+           then --Cx (&1 / sqrt (&2))
+           else Cx (&1 / sqrt (&2))) = cproduct (bits_of_num (i - 1) INTER bits_of_num (i' - 1))
+      (\k. if k IN bits_of_num (i - 1) INTER bits_of_num (i' - 1)
+           then --Cx (&1 / sqrt (&2))
+           else Cx (&1 / sqrt (&2))) * cproduct ((0..dimindex (:N) - 1) DIFF
+       bits_of_num (i - 1) INTER bits_of_num (i' - 1))
+      (\k. if k IN bits_of_num (i - 1) INTER bits_of_num (i' - 1)
+           then --Cx (&1 / sqrt (&2))
+           else Cx (&1 / sqrt (&2)))`SUBST1_TAC THENL[MATCH_MP_TAC CPRODUCT_UNION
+    THEN SIMP_TAC[FINITE_BITS_OF_NUM;FINITE_INTER;FINITE_DIFF;FINITE_NUMSEG] THEN
+    SIMP_TAC[SET_RULE`DISJOINT s (t DIFF s)`];ALL_TAC] THEN
+    SIMP_TAC[CPRODUCT_CONST;FINITE_INTER;FINITE_BITS_OF_NUM] THEN SIMP_TAC[DIFF] THEN
+    SIMP_TAC[CPRODUCT_CONST;FINITE_INTER;FINITE_BITS_OF_NUM;FINITE_DIFF;GSYM DIFF;FINITE_NUMSEG] THEN
+    COND_CASES_TAC THENL[ASM_SIMP_TAC[COMPLEX_POW_NEG;GSYM NOT_ODD] THEN
+    SIMP_TAC[COMPLEX_MUL_LNEG;GSYM COMPLEX_POW_ADD] THEN
+      SUBGOAL_THEN`CARD (bits_of_num (i - 1) INTER bits_of_num (i' - 1)) +
+      CARD((0..dimindex (:N) - 1) DIFF bits_of_num (i - 1) INTER bits_of_num (i' - 1))
+      = CARD(0 .. dimindex(:N) - 1)`SUBST1_TAC THENL[MATCH_MP_TAC CARD_UNION_EQ THEN
+      SIMP_TAC[FINITE_NUMSEG] THEN MATCH_MP_TAC (SET_RULE`s SUBSET t ==> s INTER (t DIFF s)
+      = {} /\ s UNION (t DIFF s) = t`) THEN MATCH_MP_TAC SUBSET_TRANS THEN
+      EXISTS_TAC` bits_of_num (i - 1) ` THEN SIMP_TAC[INTER_SUBSET] THEN
+    MATCH_MP_TAC SUBSET_TRANS THEN EXISTS_TAC`{k | k < dimindex(:N)}` THEN
+    SIMP_TAC[BITS_OF_NUM_SUBSET_NUMSEG_EQ] THEN ASM_SIMP_TAC[GSYM DIMINDEX_FINITE_POW;
+    GSYM DIMINDEX_2;SUBSET;IN_ELIM_THM;IN_NUMSEG;ARITH] THEN ASM_ARITH_TAC;ALL_TAC] THEN
+  SIMP_TAC[CARD_NUMSEG;DIMINDEX_FINITE_POW;DIMINDEX_2;GSYM REAL_OF_NUM_CLAUSES] THEN
+  SIMP_TAC[DIMINDEX_GE_1;ARITH_RULE`1 <= a ==> (a - 1 + 1) - 0 = a`] THEN
+  AP_TERM_TAC THEN SIMP_TAC[GSYM CX_POW] THEN AP_TERM_TAC THEN SIMP_TAC[REAL_POW_DIV;
+  REAL_POW_ONE] THEN AP_TERM_TAC THEN SIMP_TAC[SQRT_POW];ALL_TAC] THEN
+  ASM_SIMP_TAC[GSYM NOT_ODD;COMPLEX_POW_NEG] THEN SIMP_TAC[GSYM COMPLEX_POW_ADD] THEN
+  SUBGOAL_THEN`CARD (bits_of_num (i - 1) INTER bits_of_num (i' - 1)) +
+      CARD((0..dimindex (:N) - 1) DIFF bits_of_num (i - 1) INTER bits_of_num (i' - 1))
+      = CARD(0 .. dimindex(:N) - 1)`SUBST1_TAC THENL[MATCH_MP_TAC CARD_UNION_EQ THEN
+      SIMP_TAC[FINITE_NUMSEG] THEN MATCH_MP_TAC (SET_RULE`s SUBSET t ==> s INTER (t DIFF s)
+      = {} /\ s UNION (t DIFF s) = t`) THEN MATCH_MP_TAC SUBSET_TRANS THEN
+      EXISTS_TAC` bits_of_num (i - 1) ` THEN SIMP_TAC[INTER_SUBSET] THEN
+    MATCH_MP_TAC SUBSET_TRANS THEN EXISTS_TAC`{k | k < dimindex(:N)}` THEN
+    SIMP_TAC[BITS_OF_NUM_SUBSET_NUMSEG_EQ] THEN ASM_SIMP_TAC[GSYM DIMINDEX_FINITE_POW;
+    GSYM DIMINDEX_2;SUBSET;IN_ELIM_THM;IN_NUMSEG;ARITH] THEN ASM_ARITH_TAC;ALL_TAC] THEN
+    SIMP_TAC[CARD_NUMSEG;DIMINDEX_FINITE_POW;DIMINDEX_2;GSYM REAL_OF_NUM_CLAUSES] THEN
+  SIMP_TAC[DIMINDEX_GE_1;ARITH_RULE`1 <= a ==> (a - 1 + 1) - 0 = a`] THEN
+  SIMP_TAC[GSYM CX_POW;REAL_POW_DIV;REAL_POW_ONE] THEN REPEAT AP_TERM_TAC THEN
+  SIMP_TAC[SQRT_POW]
+);;
 
 (* ------------------------------------------------------------------------- *)
 (* BV algorithm.                                                             *)
