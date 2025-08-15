@@ -2025,19 +2025,25 @@ let apply_cmatrix = new_definition
 (* Definition of Measurement.                                                *)
 (* ------------------------------------------------------------------------- *)
 
-let measurement = new_definition
-`!x y:(N)qstate.
-  measurement x y = cnorm2(apply_cmatrix (project x) y) `;;
+let measurement_operators = new_definition
+`measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list = 
+  MAP (\k. project (qbasis (k + 1):(N)qstate)) (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow)))`;;
+
+let measurement_prob = new_definition
+`!y:(N)qstate.
+  measurement_prob y = MAP (\k.cnorm2 (apply_cmatrix (EL k (measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list)) y)) 
+                    (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow))) `;;
 
 (* ------------------------------------------------------------------------- *)
 (* Measurement after the second H gate in the Bernstein-Vazirani algorithm.  *)
 (* ------------------------------------------------------------------------- *)
 let BV_MEASURE = prove
-(`!inputs:num. 
+(`!inputs:num.
     0 < inputs /\ inputs < dimindex(:(2,N)finite_pow)
-        ==> measurement (qbasis (inputs + 1):(N)qstate)(second_h inputs:(N)qstate) = &1`,
-  REPEAT STRIP_TAC THEN SIMP_TAC[qbasis;second_h;STATE_AFTER_ORAC;zero_h;NHADAMARD_MUL_ZEROQSTATE;measurement] THEN
-  SUBGOAL_THEN`dest_qstate(mk_qstate (lambda i. Cx(&1 / sqrt (&(dimindex (:(2,N)finite_pow))))))
+        ==> EL inputs (measurement_prob (second_h inputs:(N)qstate)) = &1`,
+    REPEAT STRIP_TAC THEN SIMP_TAC[measurement_prob;qbasis;second_h;STATE_AFTER_ORAC;zero_h;
+    NHADAMARD_MUL_ZEROQSTATE;measurement_operators] THEN 
+    SUBGOAL_THEN`dest_qstate(mk_qstate (lambda i. Cx(&1 / sqrt (&(dimindex (:(2,N)finite_pow))))))
   = (lambda i. Cx(&1 / sqrt (&(dimindex (:(2,N)finite_pow))))):complex^(2,N)finite_pow`SUBST1_TAC
   THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX]
   THEN SIMP_TAC[GSYM CX_MUL;GSYM REAL_POW_2;ONE_DIV_SQRTN;DIMINDEX_GE_1] THEN
@@ -2064,7 +2070,8 @@ let BV_MEASURE = prove
               then Cx (&1 / sqrt (&(dimindex (:(2,N)finite_pow))))
               else --Cx (&1 / sqrt (&(dimindex (:(2,N)finite_pow))))) *
               (if ODD (CARD (bitand inputs (j - 1))) then --c else c))`SUBST1_TAC
-  THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA;NHADAMARD_MAT];ALL_TAC] THEN
+  THENL[SIMP_TAC[CART_EQ;LAMBDA_BETA;NHADAMARD_MAT];ALL_TAC] THEN 
+  ASM_SIMP_TAC[EL_MAP;LENGTH_LIST_OF_SEQ;EL_LIST_OF_SEQ] THEN 
   ASM_SIMP_TAC[] THEN SIMP_TAC[COND_LMUL;COND_RMUL;COMPLEX_MUL_RNEG;COMPLEX_NEG_MUL2;COMPLEX_MUL_LNEG]
   THEN RULE_ASSUM_TAC(SIMP_RULE[EQ_SYM_EQ]) THEN ASM_SIMP_TAC[GSYM CX_MUL;GSYM REAL_POW_2] THEN
   SIMP_TAC[DIMINDEX_GE_1;ONE_DIV_SQRTN] THEN SIMP_TAC[DIMINDEX_FINITE_POW;DIMINDEX_2] THEN
@@ -2114,7 +2121,7 @@ let BV_MEASURE = prove
   ASM_SIMP_TAC[VSUM_2;DIMINDEX_FINITE_POW;DIMINDEX_2;EXP_1;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ] THEN
   ASM_SIMP_TAC[LAMBDA_BETA;DIMINDEX_2;PROJECT_QBASIS_COMPONENT;ARITH_RULE`1 <= 2 /\ 2 <= 2`;DIMINDEX_FINITE_POW;
   DIMINDEX_1;EXP_1;ARITH;ARITH_RULE`1 <= 1 /\ 1 <= 2`] THEN SIMP_TAC[COMPLEX_MUL_LZERO;CNJ_CX;COMPLEX_ADD_LID;
-  COMPLEX_MUL_LID;COMPLEX_NORM_NUM];ALL_TAC] THEN
+  COMPLEX_MUL_LID;COMPLEX_NORM_NUM];ALL_TAC] THEN 
   RULE_ASSUM_TAC(SIMP_RULE[ARITH_RULE`~(a <= 1) <=> 1 < a`]) THEN SIMP_TAC[FINITE_NUMSEG;FINITE_RESTRICT;
   VSUM_CASES;VSUM_CONST] THEN SIMP_TAC[SET_RULE`{k | k IN {k | k IN t /\ P k} /\ Q k} =
   {k | k IN t /\  P k /\ Q k}`;NOT_ODD;NOT_EVEN] THEN
@@ -2193,8 +2200,7 @@ let BV_MEASURE = prove
   ASM_SIMP_TAC[ARITH_RULE`1 <= a + 1 <=> 0 <= a`] THEN ASM_SIMP_TAC[ARITH_RULE`0 < a ==> 0 <= a`] THEN
   SIMP_TAC[COMPLEX_NORM_NUM]
 );;
-
-
+  
 (* ------------------------------------------------------------------------- *)
 (* Definition of XOR.                                                        *)
 (* ------------------------------------------------------------------------- *)
