@@ -1649,13 +1649,13 @@ let cmatrix_list = new_definition
 (* The n-fold tensor product of Hadamard gates is realized by a list of n identical Hadamard matrices. *)
 (* ------------------------------------------------------------------------- *)
 
-let n_hadamard = new_definition
-`n_hadamard:complex^(2,N)finite_pow^(2,N)finite_pow =
- tensor_n2 (cmatrix_list (\k. hadamard) (dimindex(:N)))`;;
+let new_n_hadamard = new_definition
+`new_n_hadamard (n:num) =
+ tensor_n2 (cmatrix_list (\k. hadamard) n)`;;
 
 let N_HADAMARD_EQHADAMARD_N = prove
-(`n_hadamard = hadamard_n:complex^(2,N)finite_pow^(2,N)finite_pow`,
-  SIMP_TAC[n_hadamard;hadamard_n;cmatrix_list;tensor_n2] THEN
+(`new_n_hadamard (dimindex(:N)) = hadamard_n:complex^(2,N)finite_pow^(2,N)finite_pow`,
+  SIMP_TAC[new_n_hadamard;hadamard_n;cmatrix_list;tensor_n2] THEN
   SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN REPEAT STRIP_TAC THEN
   AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[LENGTH_MAP;LENGTH_LIST_OF_SEQ] THEN
   SUBGOAL_THEN`MAP (\k. hadamard) (list_of_seq (\k. k) (dimindex (:N)))
