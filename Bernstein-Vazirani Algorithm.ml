@@ -260,7 +260,7 @@ let BITS_OF_NUM_SUBSET_NUMSEG_EQ = prove
 
 
 (* ------------------------------------------------------------------------- *)
-(* Next is my work                                                           *)
+(* Definition of quantum state                                               *)
 (* ------------------------------------------------------------------------- *)
 let NUM_EXP_LE = prove
   (`!x y. 1 <= y ==> x <= x EXP y`,
@@ -1626,7 +1626,7 @@ THEN MP_TAC(ARITH_RULE`1 <= dimindex(:N) /\ ~(dimindex(:N) = 1) <=> 1 < dimindex
 ASM_SIMP_TAC[DIMINDEX_GE_1] THEN REPEAT STRIP_TAC THEN SIMP_TAC[REAL_ARITH`a - a + a - a = &0`]);;
 
 (* ------------------------------------------------------------------------- *)
-(* `tensor_n2` denotes the n-fold tensor product of 2-dimensional matrices.  *)
+(* Definition of n-fold tensor product of 2-dimensional matrices.            *)
 (* ------------------------------------------------------------------------- *)
 
 let tensor_n2 = new_definition
@@ -1636,17 +1636,20 @@ let tensor_n2 = new_definition
       (\k. EL k (REVERSE m) $(((i-1) DIV (2 EXP k)) MOD 2 + 1)
                    $(((j-1) DIV (2 EXP k)) MOD 2 + 1))`;;
 
-(* ------------------------------------------------------------------------- *)
-(* `list_of_seq (\k. k) n` produces the integer sequence 0, 1, …, n−1.
-`MAP f (list_of_seq (\k. k) n)` then applies the function f to each element of this list, yielding a list of matrices.  *)
-(* ------------------------------------------------------------------------- *)
+(* ---------------------------------------------------------------------------- *)
+(* cmatrix_list: Generates a list of n 2D matrices by applying function f to each index k ∈ {0,...,n-1}.
+ Parameter f supports:
+  - Constant gates:  \k. Hadamard       (n Hadamard gates)
+  - Conditional gates: \k. if k = 0 then X else Z
+  - CNOT control:   \k. if k = c then CNOT_c_t else I  (c: control, t: target)-----*)
+(* ----------------------------------------------------------------------------- *)
 
 let cmatrix_list = new_definition
 `!n:num f:num -> complex^(2,1)finite_pow^(2,1)finite_pow.
   (cmatrix_list f n):(complex^(2,1)finite_pow^(2,1)finite_pow)list = MAP f (list_of_seq (\k. k) n)`;;
 
 (* ------------------------------------------------------------------------- *)
-(* The n-fold tensor product of Hadamard gates is realized by a list of n identical Hadamard matrices. *)
+(* The n-fold tensor product of Hadamard gates.                              *)
 (* ------------------------------------------------------------------------- *)
 
 let new_n_hadamard = new_definition
@@ -1741,6 +1744,109 @@ let N_HADAMARD_EQHADAMARD_N = prove
   SIMP_TAC[GSYM CX_POW;REAL_POW_DIV;REAL_POW_ONE] THEN REPEAT AP_TERM_TAC THEN
   SIMP_TAC[SQRT_POW]
 );;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Ground State.                                                        *)
+(* ------------------------------------------------------------------------- *)
+
+let qbasis = new_definition
+  `(qbasis:num -> (N)qstate) k =
+     mk_qstate(lambda i. if i = k then Cx(&1) else Cx(&0))`;;
+
+let QBASIS_COMPONENT = prove
+ (`!k i. 1 <= k /\ k <= dimindex (:(2,N)finite_pow) /\ 1 <= i /\ i <= dimindex (:(2,N)finite_pow)
+         ==> (dest_qstate (qbasis i:(N)qstate)$k = if k = i then Cx(&1) else Cx(&0))`,
+  REPEAT STRIP_TAC THEN SIMP_TAC[qbasis] THEN SUBGOAL_THEN`(lambda i'. if i' = i 
+  then Cx (&1) else Cx (&0)): complex^(2,N)finite_pow = cbasis (i:num)`SUBST1_TAC THENL[SIMP_TAC[cbasis;vector_to_cvector;vector_map;CART_EQ;LAMBDA_BETA;basis] THEN
+  ASM_SIMP_TAC[COND_RAND];ALL_TAC] THEN SUBGOAL_THEN`dest_qstate (mk_qstate (cbasis i))
+  = cbasis i:complex^(2,N)finite_pow`SUBST1_TAC THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN 
+  SIMP_TAC[is_qstate;CNORM2_VECTOR_TO_CVECTOR;cbasis] THEN 
+  ASM_SIMP_TAC[NORM_BASIS;REAL_ARITH`&1 pow 2 = &1`];ALL_TAC] THEN
+  ASM_SIMP_TAC[CBASIS_COMPONENT]
+ );;
+
+let QBASIS_UNIT = prove
+(`!k:num. 1<= k /\ k <= dimindex(:(2,N)finite_pow) ==>
+    is_qstate ((lambda i. if i = k then Cx(&1) else Cx(&0)):complex^(2,N)finite_pow)`,
+    REPEAT STRIP_TAC THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;CART_EQ;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN
+    SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO;VSUM_DELTA_ALT] THEN 
+    ASM_SIMP_TAC[IN_NUMSEG] THEN SIMP_TAC[COMPLEX_NORM_CX; REAL_ARITH`abs (&1) = &1`]
+);;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Outer Product.                                              *)
+(* ------------------------------------------------------------------------- *)
+
+let qouter1 = new_definition
+  `qouter1 (v:(M)qstate) (w:(N)qstate) :complex^(2,N)finite_pow^(2,M)finite_pow =
+     (lambda i j. dest_qstate v$i * cnj (dest_qstate w$j))`;;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Projection Operator.                                        *)
+(* ------------------------------------------------------------------------- *)
+
+let project = new_definition
+  `(project:(N)qstate -> complex^(2,N)finite_pow^(2,N)finite_pow) v = qouter1 v v`;;
+
+let PROJECT_HERMITIAN = prove
+(`project (v:(N)qstate) = hermitian_matrix (project v)`,
+    SIMP_TAC[hermitian_matrix;project] THEN SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN
+    REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[qouter1] THEN
+    ASM_SIMP_TAC[LAMBDA_BETA] THEN SIMP_TAC[CNJ_MUL;CNJ_CNJ;COMPLEX_MUL_AC]
+);;
+
+let PROJECT_IDEMPOTENT = prove
+(`!k:num. 1 <= k /\ k <= dimindex (:(2,N)finite_pow) ==>
+   (project (tau1 k:(N)qstate)) ** project (tau1 k) = project (tau1 k)`,
+  GEN_TAC THEN SIMP_TAC[cmatrix_mul;LAMBDA_BETA;CART_EQ;PROJECT_TAU1_COMPONENT] THEN
+  REPEAT STRIP_TAC THEN SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN
+  AP_THM_TAC THEN AP_TERM_TAC THEN COND_CASES_TAC THENL[
+  ASM_SIMP_TAC[] THEN GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN
+  SIMP_TAC[VSUM_DELTA_ALT] THEN ASM_MESON_TAC[IN_NUMSEG];ALL_TAC] THEN
+  GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN ASM_SIMP_TAC[] THEN
+  RULE_ASSUM_TAC(SIMP_RULE[DE_MORGAN_THM]) THEN POP_ASSUM MP_TAC THEN STRIP_TAC THEN
+  ASM_SIMP_TAC[COND_ID;FINITE_NUMSEG;VSUM_CONST;VSUM_CX;SUM_0]
+);;
+
+let PROJECT_COMPLETE = prove
+(`cmat_sum (1..dimindex(:(2,N)finite_pow)) (\i. project(tau1 i:(N)qstate)) =
+  id_cmatrix:complex^(2,N)finite_pow^(2,N)finite_pow`,
+  SIMP_TAC[cmat_sum;id_cmatrix;LAMBDA_BETA;CART_EQ] THEN REPEAT STRIP_TAC THEN
+  AP_THM_TAC THEN AP_TERM_TAC THEN ASM_SIMP_TAC[PROJECT_TAU1_COMPONENT] THEN
+  COND_CASES_TAC THENL[ASM_SIMP_TAC[] THEN GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)
+  [EQ_SYM_EQ] THEN SIMP_TAC[VSUM_DELTA_ALT] THEN ASM_SIMP_TAC[IN_NUMSEG];ALL_TAC] THEN
+  GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN SIMP_TAC[VSUM_CX;SUM_0]
+);;
+
+let PROJECT_QBASIS_COMPONENT = prove
+(`!k:num.1 <= k /\ k <= dimindex(:(2,N)finite_pow) /\
+         1 <= i /\ i <= dimindex(:(2,N)finite_pow) /\
+        1 <= j /\ j <= dimindex(:(2,N)finite_pow)==>
+    (project (qbasis k:(N)qstate):complex^(2,N)finite_pow^(2,N)finite_pow)$i$j = 
+    if (i = j) /\ (i = k) then Cx(&1) else Cx(&0)`,
+    SIMP_TAC[project;qouter1;QBASIS_COMPONENT;LAMBDA_BETA] THEN 
+    SIMP_TAC[COND_LMUL;COND_CNJ;CNJ_CX;COND_RMUL] THEN
+    SIMP_TAC[COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN REPEAT STRIP_TAC THEN 
+    COND_CASES_TAC THENL[ASM_MESON_TAC[];ALL_TAC] THEN 
+    ASM_MESON_TAC[]
+);;
+
+let apply_cmatrix = new_definition
+  `(apply_cmatrix: complex^(2,N)finite_pow^(2,M)finite_pow -> (N)qstate -> complex^(2,M)finite_pow) A q  =
+   lambda i. vsum (1..dimindex (:(2,N)finite_pow)) (\j. A$i$j * dest_qstate q$j)`;;
+
+(* ------------------------------------------------------------------------- *)
+(* Definition of Measurement.                                                *)
+(* ------------------------------------------------------------------------- *)
+
+let measurement_operators = new_definition
+`measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list = 
+  MAP (\k. project (qbasis (k + 1):(N)qstate)) (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow)))`;;
+
+let measurement_prob = new_definition
+`!y:(N)qstate.
+  measurement_prob y = MAP (\k.cnorm2 (apply_cmatrix (EL k (measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list)) y)) 
+                    (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow))) `;;
 
 (* ------------------------------------------------------------------------- *)
 (* BV algorithm.                                                             *)
@@ -2046,109 +2152,6 @@ THEN STRIP_TAC THEN STRIP_TAC THENL[ASM_SIMP_TAC[ARITH_RULE`0 <= a <=> a = 0 \/ 
 MP_TAC(SPECL[`inputs + 1`;`inputs + 1`] CBASIS_COMPONENT) THEN SIMP_TAC[ARITH_RULE`1 <= inputs + 1 <=> 0 <= inputs`]
 THEN ASM_SIMP_TAC[ARITH_RULE`inputs + 1 <= a  <=> inputs < a`] THEN ASM_SIMP_TAC[ARITH_RULE`0 <= a <=> a = 0 \/ 0 < a`];ALL_TAC]
 THEN ARITH_TAC);;
-
-(* ------------------------------------------------------------------------- *)
-(* Definition of Ground State.                                                        *)
-(* ------------------------------------------------------------------------- *)
-
-let qbasis = new_definition
-  `(qbasis:num -> (N)qstate) k =
-     mk_qstate(lambda i. if i = k then Cx(&1) else Cx(&0))`;;
-
-let QBASIS_COMPONENT = prove
- (`!k i. 1 <= k /\ k <= dimindex (:(2,N)finite_pow) /\ 1 <= i /\ i <= dimindex (:(2,N)finite_pow)
-         ==> (dest_qstate (qbasis i:(N)qstate)$k = if k = i then Cx(&1) else Cx(&0))`,
-  REPEAT STRIP_TAC THEN SIMP_TAC[qbasis] THEN SUBGOAL_THEN`(lambda i'. if i' = i 
-  then Cx (&1) else Cx (&0)): complex^(2,N)finite_pow = cbasis (i:num)`SUBST1_TAC THENL[SIMP_TAC[cbasis;vector_to_cvector;vector_map;CART_EQ;LAMBDA_BETA;basis] THEN
-  ASM_SIMP_TAC[COND_RAND];ALL_TAC] THEN SUBGOAL_THEN`dest_qstate (mk_qstate (cbasis i))
-  = cbasis i:complex^(2,N)finite_pow`SUBST1_TAC THENL[MATCH_MP_TAC DEST_OF_QSTATE THEN 
-  SIMP_TAC[is_qstate;CNORM2_VECTOR_TO_CVECTOR;cbasis] THEN 
-  ASM_SIMP_TAC[NORM_BASIS;REAL_ARITH`&1 pow 2 = &1`];ALL_TAC] THEN
-  ASM_SIMP_TAC[CBASIS_COMPONENT]
- );;
-
-let QBASIS_UNIT = prove
-(`!k:num. 1<= k /\ k <= dimindex(:(2,N)finite_pow) ==>
-    is_qstate ((lambda i. if i = k then Cx(&1) else Cx(&0)):complex^(2,N)finite_pow)`,
-    REPEAT STRIP_TAC THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;CART_EQ;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN
-    SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO;VSUM_DELTA_ALT] THEN 
-    ASM_SIMP_TAC[IN_NUMSEG] THEN SIMP_TAC[COMPLEX_NORM_CX; REAL_ARITH`abs (&1) = &1`]
-);;
-
-(* ------------------------------------------------------------------------- *)
-(* Definition of Outer Product.                                              *)
-(* ------------------------------------------------------------------------- *)
-
-let qouter1 = new_definition
-  `qouter1 (v:(M)qstate) (w:(N)qstate) :complex^(2,N)finite_pow^(2,M)finite_pow =
-     (lambda i j. dest_qstate v$i * cnj (dest_qstate w$j))`;;
-
-(* ------------------------------------------------------------------------- *)
-(* Definition of Projection Operator.                                        *)
-(* ------------------------------------------------------------------------- *)
-
-let project = new_definition
-  `(project:(N)qstate -> complex^(2,N)finite_pow^(2,N)finite_pow) v = qouter1 v v`;;
-
-let PROJECT_HERMITIAN = prove
-(`project (v:(N)qstate) = hermitian_matrix (project v)`,
-    SIMP_TAC[hermitian_matrix;project] THEN SIMP_TAC[CART_EQ;LAMBDA_BETA] THEN
-    REPEAT STRIP_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN SIMP_TAC[qouter1] THEN
-    ASM_SIMP_TAC[LAMBDA_BETA] THEN SIMP_TAC[CNJ_MUL;CNJ_CNJ;COMPLEX_MUL_AC]
-);;
-
-let PROJECT_IDEMPOTENT = prove
-(`!k:num. 1 <= k /\ k <= dimindex (:(2,N)finite_pow) ==>
-   (project (tau1 k:(N)qstate)) ** project (tau1 k) = project (tau1 k)`,
-  GEN_TAC THEN SIMP_TAC[cmatrix_mul;LAMBDA_BETA;CART_EQ;PROJECT_TAU1_COMPONENT] THEN
-  REPEAT STRIP_TAC THEN SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN
-  AP_THM_TAC THEN AP_TERM_TAC THEN COND_CASES_TAC THENL[
-  ASM_SIMP_TAC[] THEN GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN
-  SIMP_TAC[VSUM_DELTA_ALT] THEN ASM_MESON_TAC[IN_NUMSEG];ALL_TAC] THEN
-  GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN ASM_SIMP_TAC[] THEN
-  RULE_ASSUM_TAC(SIMP_RULE[DE_MORGAN_THM]) THEN POP_ASSUM MP_TAC THEN STRIP_TAC THEN
-  ASM_SIMP_TAC[COND_ID;FINITE_NUMSEG;VSUM_CONST;VSUM_CX;SUM_0]
-);;
-
-let PROJECT_COMPLETE = prove
-(`cmat_sum (1..dimindex(:(2,N)finite_pow)) (\i. project(tau1 i:(N)qstate)) =
-  id_cmatrix:complex^(2,N)finite_pow^(2,N)finite_pow`,
-  SIMP_TAC[cmat_sum;id_cmatrix;LAMBDA_BETA;CART_EQ] THEN REPEAT STRIP_TAC THEN
-  AP_THM_TAC THEN AP_TERM_TAC THEN ASM_SIMP_TAC[PROJECT_TAU1_COMPONENT] THEN
-  COND_CASES_TAC THENL[ASM_SIMP_TAC[] THEN GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)
-  [EQ_SYM_EQ] THEN SIMP_TAC[VSUM_DELTA_ALT] THEN ASM_SIMP_TAC[IN_NUMSEG];ALL_TAC] THEN
-  GEN_REWRITE_TAC(LAND_CONV o ONCE_DEPTH_CONV)[EQ_SYM_EQ] THEN SIMP_TAC[VSUM_CX;SUM_0]
-);;
-
-let PROJECT_QBASIS_COMPONENT = prove
-(`!k:num.1 <= k /\ k <= dimindex(:(2,N)finite_pow) /\
-         1 <= i /\ i <= dimindex(:(2,N)finite_pow) /\
-        1 <= j /\ j <= dimindex(:(2,N)finite_pow)==>
-    (project (qbasis k:(N)qstate):complex^(2,N)finite_pow^(2,N)finite_pow)$i$j = 
-    if (i = j) /\ (i = k) then Cx(&1) else Cx(&0)`,
-    SIMP_TAC[project;qouter1;QBASIS_COMPONENT;LAMBDA_BETA] THEN 
-    SIMP_TAC[COND_LMUL;COND_CNJ;CNJ_CX;COND_RMUL] THEN
-    SIMP_TAC[COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN REPEAT STRIP_TAC THEN 
-    COND_CASES_TAC THENL[ASM_MESON_TAC[];ALL_TAC] THEN 
-    ASM_MESON_TAC[]
-);;
-
-let apply_cmatrix = new_definition
-  `(apply_cmatrix: complex^(2,N)finite_pow^(2,M)finite_pow -> (N)qstate -> complex^(2,M)finite_pow) A q  =
-   lambda i. vsum (1..dimindex (:(2,N)finite_pow)) (\j. A$i$j * dest_qstate q$j)`;;
-
-(* ------------------------------------------------------------------------- *)
-(* Definition of Measurement.                                                *)
-(* ------------------------------------------------------------------------- *)
-
-let measurement_operators = new_definition
-`measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list = 
-  MAP (\k. project (qbasis (k + 1):(N)qstate)) (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow)))`;;
-
-let measurement_prob = new_definition
-`!y:(N)qstate.
-  measurement_prob y = MAP (\k.cnorm2 (apply_cmatrix (EL k (measurement_operators:(complex^(2,N)finite_pow^(2,N)finite_pow) list)) y)) 
-                    (list_of_seq (\k. k) (dimindex(:(2,N)finite_pow))) `;;
 
 (* ------------------------------------------------------------------------- *)
 (* Measurement after the second H gate in the Bernstein-Vazirani algorithm.  *)
