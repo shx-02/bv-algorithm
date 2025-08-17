@@ -21,7 +21,7 @@ Prerequisites
 - **HOL Light (latest Git snapshot)**
 - **Install instructions: https://hol-light.github.io/**
  
-Running the Formal Code
+Running the Formal Code In HOL Light
 - **cd hol-light**
 - **ledit ocaml**
 - **#use "hol.ml";;**
