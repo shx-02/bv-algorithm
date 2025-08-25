@@ -15,7 +15,7 @@ needs "Library/binary.ml";;
 needs "Library/words.ml";;
 
 let UNION_DIFF = prove
-(`!s t. s SUBSET t ==> t = s UNION (t DIFF s)`,
+(`!(s:A->bool) t. s SUBSET t ==> t = s UNION (t DIFF s)`,
 SIMP_TAC[SUBSET;EXTENSION;IN_ELIM_THM;UNION;DIFF] THEN
 REPEAT STRIP_TAC THEN EQ_TAC THEN ASM_MESON_TAC[]);;
 
@@ -658,7 +658,7 @@ THEN MESON_TAC[]);;
 
 
 (* ------------------------------------------------------------------------- *)
-(* To inductively prove the unitary property of the N-fold Hadamard gate.    *)                                                         *)
+(* To inductively prove the unitary property of the N-fold Hadamard gate.    *)
 (* ------------------------------------------------------------------------- *)
 
 let OFFSET_IMAGE = prove
@@ -1845,7 +1845,7 @@ let N_HADAMARD_EQHADAMARD_N = prove
 );;
 
 (* ------------------------------------------------------------------------- *)
-(* Definition of Ground State.                                                        *)
+(* Definition of Ground State.                                               *)
 (* ------------------------------------------------------------------------- *)
 
 let qbasis = new_definition
