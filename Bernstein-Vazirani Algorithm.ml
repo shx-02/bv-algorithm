@@ -54,80 +54,6 @@ let COND_T_F =
    BOOL_CASES_TAC `b:bool` THEN
    REWRITE_TAC []);;
 
-let MOD_ZERO = prove
- (`!n. n MOD 0 = n`,
-  MESON_TAC[DIVISION_0]);;
-
-let DIV_ZERO = prove
- (`!n. n DIV 0 = 0`,
-  MESON_TAC[DIVISION_0]);;
-
-let UNION_RESTRICT = prove
- (`!P s t:A->bool.
-        {x | x IN (s UNION t) /\ P x} =
-        {x | x IN s /\ P x} UNION {x | x IN t /\ P x}`,
-  SET_TAC[]);;
-
-let NUMSEG_CLAUSES_LT = prove
- (`{i | i < 0} = {} /\
-   (!k. {i | i < SUC k} = k INSERT {i | i < k})`,
-  REWRITE_TAC[LT] THEN SET_TAC[]);;
-
-let DISJOINT_SING = prove
- (`(!s a:A. DISJOINT s {a} <=> ~(a IN s)) /\
-   (!s a:A. DISJOINT {a} s <=> ~(a IN s))`,
-  SET_TAC[]);;
-
-(* ------------------------------------------------------------------------- *)
-(* For the definition and verification of the N_H gate                       *)
-(* ------------------------------------------------------------------------- *)
-
-let numbit = new_definition `numbit i n = ODD(n DIV (2 EXP i))`;;
-
-let bits_of_num = new_definition
- `bits_of_num n = {i | numbit i n}`;;
-
-let IN_BITS_OF_NUM = prove
- (`!n i. i IN bits_of_num n <=> ODD(n DIV 2 EXP i)`,
-  REWRITE_TAC[bits_of_num; numbit; IN_ELIM_THM]);;
-
-let BITS_OF_NUM_SUBSET_NUMSEG_LT = prove
- (`!n. bits_of_num n SUBSET {i | i < n}`,
-  REWRITE_TAC[SUBSET; IN_ELIM_THM; IN_BITS_OF_NUM] THEN
-  MESON_TAC[DIV_LT; EVEN; LT_POW2_REFL; LET_TRANS; NOT_LE; NOT_EVEN]);;
-
-let FINITE_BITS_OF_NUM = prove
- (`!n. FINITE(bits_of_num n)`,
-  MESON_TAC[BITS_OF_NUM_SUBSET_NUMSEG_LT; FINITE_NUMSEG_LT; FINITE_SUBSET]);;
-
-let BITSET_EQ_BITSNUM = prove
-(`!a:num. bitset a = bits_of_num a `,
-SIMP_TAC[bitset;bits_of_num;numbit]);;
-
-let ITERATE_CLAUSES_NUMSEG_LT = prove
- (`!op. monoidal op
-        ==> iterate op {i | i < 0} f :A = neutral op /\
-            (!k. iterate op {i | i < SUC k} f =
-                 op (iterate op {i | i < k} f) (f k))`,
-  SIMP_TAC[NUMSEG_CLAUSES_LT; ITERATE_CLAUSES; FINITE_NUMSEG_LT] THEN
-  REWRITE_TAC[IN_ELIM_THM; LT_REFL; monoidal] THEN MESON_TAC[]);;
-
-let NSUM_CLAUSES_NUMSEG_LT = prove
- (`nsum {i | i < 0} f = 0 /\
-   (!k. nsum {i | i < SUC k} f = nsum {i | i < k} f + f k)`,
-  MP_TAC(MATCH_MP ITERATE_CLAUSES_NUMSEG_LT MONOIDAL_ADD) THEN
-  REWRITE_TAC[NEUTRAL_ADD; nsum]);;
-
-let DIGITSUM_BOUND = prove
- (`!B b k. (!i. i < k ==> b i < B)
-           ==> nsum {i | i < k} (\i. B EXP i * b i) < B EXP k`,
-  GEN_TAC THEN GEN_TAC THEN INDUCT_TAC THEN
-  REWRITE_TAC[NSUM_CLAUSES_NUMSEG_LT; EXP; ARITH] THEN
-  REWRITE_TAC[LT] THEN DISCH_TAC THEN
-  MATCH_MP_TAC(ARITH_RULE
-   `s < e /\ e * (x + 1) <= e * b ==> s + e * x < b * e`) THEN
-  ASM_SIMP_TAC[LE_MULT_LCANCEL; ARITH_RULE `b + 1 <= c <=> b < c`]);;
-
 let ZERO_DIV = prove
 (`!n.0 DIV n = 0`,
 GEN_TAC THEN ASM_CASES_TAC`n = 0` THENL [ASM_SIMP_TAC[]
@@ -137,42 +63,6 @@ let ZERO_MOD = prove
 (`!n. 0 MOD n = 0`,
 GEN_TAC THEN ASM_CASES_TAC`n = 0` THENL
 [ASM_SIMP_TAC[MOD_ZERO];ALL_TAC] THEN ASM_SIMP_TAC[MOD_0]);;
-
-let DIGITSUM_SPLIT = prove
- (`!B b s n.
-        FINITE s
-        ==> B EXP n * nsum {i | i IN s /\ n <= i} (\i. B EXP (i - n) * b i) +
-            nsum {i | i IN s /\ i < n} (\i. B EXP i * b i) =
-            nsum s (\i. B EXP i * b i)`,
-  REPEAT STRIP_TAC THEN
-  REWRITE_TAC[GSYM NSUM_LMUL; MULT_ASSOC; GSYM EXP_ADD] THEN
-  SIMP_TAC[ARITH_RULE `n:num <= i ==> n + i - n = i`] THEN
-  MATCH_MP_TAC NSUM_UNION_EQ THEN ASM_REWRITE_TAC[GSYM NOT_LT] THEN
-  SET_TAC[]);;
-
-let DIGITSUM_DIV,DIGITSUM_MOD = (CONJ_PAIR o prove)
- (`(!B b s n.
-        FINITE s /\ (!i. i IN s ==> b i < B)
-        ==> nsum s (\i. B EXP i * b i) DIV (B EXP n) =
-            nsum {i | i IN s /\ n <= i} (\i. B EXP (i - n) * b i)) /\
-   (!B b s n.
-        FINITE s /\ (!i. i IN s ==> b i < B)
-        ==> nsum s (\i. B EXP i * b i) MOD (B EXP n) =
-            nsum {i | i IN s /\ i < n} (\i. B EXP i * b i))`,
-  REWRITE_TAC[AND_FORALL_THM] THEN REPEAT GEN_TAC THEN
-  ASM_CASES_TAC `B = 0` THENL
-   [ASM_REWRITE_TAC[CONJUNCT1 LT; SET_RULE `(!x. ~(x IN s)) <=> s = {}`] THEN
-    SIMP_TAC[EMPTY_GSPEC; NOT_IN_EMPTY; CONJUNCT1 NSUM_CLAUSES] THEN
-    SIMP_TAC[ZERO_DIV;ZERO_MOD];ALL_TAC] THEN
-  REWRITE_TAC[TAUT `(p ==> q) /\ (p ==> r) <=> p ==> q /\ r`] THEN
-  STRIP_TAC THEN MATCH_MP_TAC DIVMOD_UNIQ THEN CONJ_TAC THENL
-   [GEN_REWRITE_TAC (RAND_CONV o LAND_CONV) [MULT_SYM] THEN
-    MATCH_MP_TAC(GSYM DIGITSUM_SPLIT) THEN ASM_REWRITE_TAC[];ALL_TAC]
-    THEN ONCE_SIMP_TAC[SET_RULE
-     `{x | x IN s /\ P x} = {x | x IN {y | P y} /\ x IN s}`] THEN
-    REWRITE_TAC[NSUM_RESTRICT_SET; MESON[MULT_CLAUSES]
-     `(if p then a * b else 0) = a * (if p then b else 0)`] THEN
-    MATCH_MP_TAC DIGITSUM_BOUND THEN ASM_MESON_TAC[LE_1]);;
 
 let MULT_EQ_NOT_0 = prove
  (`!m n. ~(m = 0) /\ ~(n = 0) <=> ~(m * n = 0)`,
@@ -188,103 +78,6 @@ let DIV_MOD_ALT = prove
   THEN SIMP_TAC[MULT_EQ_NOT_0;DIV_MOD] THEN SIMP_TAC[ARITH_RULE`p * n:num = n * p`]
   THEN SIMP_TAC[DIV_MOD]);;
 
-let DIGITSUM_DIV_MOD = prove
- (`!B b s n.
-        FINITE s /\ (!i. i IN s ==> b i < B)
-        ==> nsum s (\i. B EXP i * b i) DIV (B EXP n) MOD B =
-            if n IN s then b n else 0`,
-  REPEAT STRIP_TAC THEN REWRITE_TAC[DIV_MOD_ALT] THEN
-  REWRITE_TAC[MESON[EXP; MULT_SYM] `B EXP n * B = B EXP SUC n`] THEN
-  ASM_SIMP_TAC[DIGITSUM_MOD] THEN
-  ASM_SIMP_TAC[DIGITSUM_DIV; FINITE_RESTRICT; IN_ELIM_THM] THEN
-  REWRITE_TAC[GSYM CONJ_ASSOC; ARITH_RULE `i < SUC n /\ n <= i <=> i = n`] THEN
-  REWRITE_TAC[MESON[] `i IN s /\ i = n <=> n IN s /\ i = n`] THEN
-  ASM_CASES_TAC `(n:num) IN s` THEN
-  ASM_REWRITE_TAC[EMPTY_GSPEC; NSUM_CLAUSES] THEN
-  REWRITE_TAC[SING_GSPEC; NSUM_SING; SUB_REFL; MULT_CLAUSES; EXP]);;
-
-let BITS_OF_NUM_NSUM = prove
- (`!s. FINITE s ==> bits_of_num (nsum s (\i. 2 EXP i)) = s`,
-  REPEAT STRIP_TAC THEN REWRITE_TAC[EXTENSION;IN_BITS_OF_NUM; ODD_MOD] THEN
-  X_GEN_TAC `k:num` THEN MP_TAC(SPECL
-    [`2`; `\i:num. 1`; `s:num->bool`; `k:num`] DIGITSUM_DIV_MOD) THEN
-  ASM_SIMP_TAC[ARITH_RULE `1 < 2`; MULT_CLAUSES] THEN ARITH_TAC);;
-
-let MOD_MULT_MOD = prove
- (`!m n p. m MOD (n * p) = n * (m DIV n) MOD p + m MOD n`,
-  REPEAT GEN_TAC THEN ASM_CASES_TAC `n = 0` THEN
-  ASM_REWRITE_TAC[MULT_CLAUSES; MOD_ZERO; ADD_CLAUSES] THEN
-  ASM_CASES_TAC `p = 0` THENL
-   [ASM_REWRITE_TAC[MULT_CLAUSES; MOD_ZERO] THEN
-    ASM_METIS_TAC[DIVISION; MULT_SYM];ALL_TAC] THEN
-MP_TAC(SPECL[`m DIV n DIV p * n * p`;`m MOD (n * p)`;`n * (m DIV n) MOD p + m MOD n`](GSYM EQ_ADD_LCANCEL))
-THEN STRIP_TAC THEN ASM_SIMP_TAC[] THEN UNDISCH_TAC`~(p = 0)` THEN
-UNDISCH_TAC`~(n = 0)` THEN SIMP_TAC[TAUT`p ==> q ==> r <=> p /\ q ==> r`]
-  THEN SIMP_TAC[MULT_EQ_NOT_0;DIVISION_SIMP;DIV_DIV] THEN
-  SIMP_TAC[ARITH_RULE`d * n * p:num = n * (d * p)`] THEN
-  SIMP_TAC[GSYM LEFT_ADD_DISTRIB; ADD_ASSOC;GSYM DIV_DIV] THEN
-  ABBREV_TAC`k = m DIV n` THEN SIMP_TAC[GSYM MULT_EQ_NOT_0] THEN
-  POP_ASSUM MP_TAC THEN CONV_TAC(ONCE_DEPTH_CONV SYM_CONV)
-  THEN SIMP_TAC[DIVISION_SIMP]);;
-
-let DIGITSUM_WORKS_GEN = prove
- (`!B n k.
-    nsum {i | i < k} (\i. B EXP i * n DIV (B EXP i) MOD B) = n MOD (B EXP k)`,
-  GEN_TAC THEN GEN_TAC THEN MATCH_MP_TAC num_INDUCTION THEN
-  SIMP_TAC[NUMSEG_CLAUSES_LT; NSUM_CLAUSES; MOD_1; EXP; FINITE_NUMSEG_LT] THEN
-  X_GEN_TAC `k:num` THEN DISCH_TAC THEN REWRITE_TAC[IN_ELIM_THM; LT_REFL] THEN
-  MESON_TAC[MOD_MULT_MOD; MULT_SYM]);;
-
-let MOD_2_CASES = prove
- (`!n. n MOD 2 = if EVEN n then 0 else 1`,
-  MESON_TAC[EVEN_MOD; ODD_MOD; NOT_ODD]);;
-
-let NSUM_BITS_OF_NUM = prove
- (`!n. nsum (bits_of_num n) (\i. 2 EXP i) = n`,
-  GEN_TAC THEN MP_TAC(SPECL [`2`; `n:num`; `n:num`] DIGITSUM_WORKS_GEN) THEN
-  REWRITE_TAC[MOD_2_CASES; COND_RAND; MULT_CLAUSES] THEN
-  REWRITE_TAC[GSYM NOT_ODD; COND_SWAP; GSYM NSUM_RESTRICT_SET] THEN
-  SIMP_TAC[MOD_LT; LT_POW2_REFL] THEN MATCH_MP_TAC EQ_IMP THEN
-  AP_THM_TAC THEN AP_TERM_TAC THEN AP_THM_TAC THEN AP_TERM_TAC THEN
-  MP_TAC(SPEC `n:num` BITS_OF_NUM_SUBSET_NUMSEG_LT) THEN
-  REWRITE_TAC[bits_of_num; numbit] THEN SET_TAC[]);;
-
-let BITS_OF_NUM_GALOIS = prove
- (`!n s. bits_of_num n = s <=> FINITE s /\ nsum s (\i. 2 EXP i) = n`,
-  MESON_TAC[FINITE_BITS_OF_NUM; BITS_OF_NUM_NSUM; NSUM_BITS_OF_NUM]);;
-
-let BITS_OF_NUM_POW2 = prove
- (`!k. bits_of_num(2 EXP k) = {k}`,
-  REWRITE_TAC[IN_BITS_OF_NUM; EXTENSION; IN_ELIM_THM; IN_SING] THEN
-  REPEAT GEN_TAC THEN SIMP_TAC[DIV_EXP; ARITH_EQ] THEN
-  COND_CASES_TAC THEN ASM_REWRITE_TAC[ODD_EXP; ARITH] THEN ASM_ARITH_TAC);;
-
-let BITS_OF_NUM_ADD = prove
- (`!m n. DISJOINT (bits_of_num m) (bits_of_num n)
-         ==> bits_of_num(m + n) = (bits_of_num m) UNION (bits_of_num n)`,
-  REPEAT STRIP_TAC THEN
-  REWRITE_TAC[BITS_OF_NUM_GALOIS; FINITE_UNION; FINITE_BITS_OF_NUM] THEN
-  ASM_SIMP_TAC[NSUM_UNION; FINITE_BITS_OF_NUM; NSUM_BITS_OF_NUM]);;
-
-let NSUM_BITS_DIV = prove
- (`!s k. FINITE s
-         ==> nsum s (\i. 2 EXP i) DIV 2 EXP k =
-             nsum {i | i IN s /\ k <= i} (\i. 2 EXP (i - k))`,
-  REPEAT STRIP_TAC THEN
-  MP_TAC(SPECL [`2`; `\i:num. 1`; `s:num->bool`; `k:num`] DIGITSUM_DIV) THEN
-  ASM_REWRITE_TAC[ARITH_RULE `1 < 2`; MULT_CLAUSES]);;
-
-let BITSUM_BOUND = prove
- (`!s k. FINITE s
-         ==> (nsum s (\i. 2 EXP i) < 2 EXP k <=> s SUBSET {i | i < k})`,
-  SIMP_TAC[CONV_RULE(RAND_CONV SYM_CONV) (SPEC_ALL DIV_EQ_0); FINITE_RESTRICT;
-           EXP_EQ_0; ARITH_EQ; NSUM_BITS_DIV; NSUM_EQ_0_IFF] THEN
-  REWRITE_TAC[GSYM NOT_LE] THEN SET_TAC[]);;
-
-let BITS_OF_NUM_SUBSET_NUMSEG_EQ = prove
- (`!n k. bits_of_num n SUBSET {i | i < k} <=> n < 2 EXP k`,
-  SIMP_TAC[GSYM BITSUM_BOUND; FINITE_BITS_OF_NUM; NSUM_BITS_OF_NUM]);;
-
 
 (* ------------------------------------------------------------------------- *)
 (* Definition of quantum state                                               *)
@@ -296,6 +89,10 @@ let NUM_EXP_LE = prove
     STRIP_TAC THEN ASM_SIMP_TAC[ARITH;EXP] THENL [ARITH_TAC; ALL_TAC] THEN
     MATCH_MP_TAC LE_TRANS THEN EXISTS_TAC `x * x:num` THEN
     ASM_SIMP_TAC[LE_SQUARE_REFL;LE_MULT_LCANCEL]);;
+
+let BITSET_EQ_BITSNUM = prove
+(`!a:num. bitset a = bits_of_num a `,
+SIMP_TAC[bitset;bits_of_num;numbit]);;
 
 let is_qstate = new_definition
   `is_qstate (q:complex^M) <=> cnorm2 q = &1`;;
@@ -2386,8 +2183,8 @@ let BV_MEASURE = prove
   (lambda i. if i - 1 = inputs then Cx (&1) else Cx (&0)):complex^(2,N)finite_pow`SUBST1_TAC
   THENL[MATCH_MP_TAC DEST_OF_QSTATE
   THEN SIMP_TAC[is_qstate;CNORM2_ALT;cdot;LAMBDA_BETA;COND_CNJ;CNJ_CX] THEN
-  SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO]
-  THEN SUBGOAL_THEN`vsum (1..dimindex (:(2,N)finite_pow))
+  SIMP_TAC[COND_LMUL;COMPLEX_MUL_LID;COMPLEX_MUL_LZERO] THEN
+  SUBGOAL_THEN`vsum (1..dimindex (:(2,N)finite_pow))
   (\i. if i - 1 = inputs then Cx (&1) else Cx (&0)) = vsum (1..dimindex (:(2,N)finite_pow))
   (\i. if i = inputs + 1 then Cx (&1) else Cx (&0))`SUBST1_TAC THENL[MATCH_MP_TAC VSUM_EQ
   THEN GEN_TAC THEN SIMP_TAC[IN_NUMSEG] THEN REPEAT STRIP_TAC THEN
